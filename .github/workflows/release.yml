@@ -9,7 +9,31 @@ on:
       - 'v*'
 
 jobs:
+  # Create the draft release once; parallel matrix jobs creating it themselves race into duplicate drafts.
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          id=$(gh api "repos/${{ github.repository }}/releases" --jq ".[] | select(.tag_name == \"v$version\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+              -f tag_name="v$version" -f target_commitish="${{ github.sha }}" \
+              -f name="Sonbola v$version" -f body='حمّل المثبّت المناسب لنظامك من الملفات أدناه.' \
+              -F draft=true --jq .id)
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
   publish-tauri:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -62,9 +86,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'Sonbola v__VERSION__'
-          releaseBody: 'حمّل المثبّت المناسب لنظامك من الملفات أدناه.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
