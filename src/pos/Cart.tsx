@@ -17,6 +17,7 @@ interface Props {
   canRestore: boolean;
   onRestore: () => void;
   onCheckout: () => void;
+  checkingOut: boolean;
   lastSale: Sale | null;
   onLastSaleVoided: () => void;
 }
@@ -30,6 +31,7 @@ export function Cart({
   canRestore,
   onRestore,
   onCheckout,
+  checkingOut,
   lastSale,
   onLastSaleVoided,
 }: Props) {
@@ -153,7 +155,7 @@ export function Cart({
             {fmt(totalMilli)}
           </Text>
         </Group>
-        <Button size="xl" fullWidth color="green" disabled={lines.length === 0 || !openShift} onClick={onCheckout}>
+        <Button size="xl" fullWidth color="green" disabled={lines.length === 0 || !openShift} loading={checkingOut} onClick={onCheckout}>
           إتمام البيع (نقداً)
         </Button>
       </Stack>

@@ -1,14 +1,15 @@
 import { type Dispatch, type SetStateAction, useState } from 'react';
 import { Box, Flex } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { listProducts } from '../api';
+import { createSale, listProducts } from '../api';
+import { useMutate } from '../lib/useMutate';
+import { useMoney } from '../lib/useSettings';
 import type { Sale } from '../api/types';
 import { Cart } from './Cart';
 import { CloseShiftModal } from './CloseShiftModal';
 import { OpenShiftModal } from './OpenShiftModal';
 import { ProductGrid } from './ProductGrid';
 import { ShiftBar } from './ShiftBar';
-import { TenderModal } from './TenderModal';
 
 export type CartMap = Map<number, number>;
 
@@ -34,7 +35,12 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
   const { cart, setCart, clearedCart, setClearedCart, lastSale, setLastSale } = session;
   const [openShiftOpened, setOpenShiftOpened] = useState(false);
   const [closeShiftOpened, setCloseShiftOpened] = useState(false);
-  const [tenderOpened, setTenderOpened] = useState(false);
+  const { fmt } = useMoney();
+  const sale = useMutate(createSale, (s) => `تمت عملية البيع رقم ${s.id} — ${fmt(s.totalMilli)}`, (s) => {
+    setLastSale(s);
+    setClearedCart(null);
+    setCart(new Map());
+  });
   const { data: products = [] } = useQuery({ queryKey: ['list_products', false], queryFn: () => listProducts(false) });
 
   const setQty = (productId: number, qty: number) => {
@@ -77,23 +83,13 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
               if (clearedCart) setCart(clearedCart);
               setClearedCart(null);
             }}
-            onCheckout={() => setTenderOpened(true)}
+            onCheckout={() => sale.mutate({ items: [...cart].map(([productId, qty]) => ({ productId, qty })) })}
+            checkingOut={sale.isPending}
             lastSale={lastSale}
             onLastSaleVoided={() => setLastSale(null)}
           />
         </Box>
       </Flex>
-      <TenderModal
-        opened={tenderOpened}
-        onClose={() => setTenderOpened(false)}
-        totalMilli={totalMilli}
-        items={[...cart].map(([productId, qty]) => ({ productId, qty }))}
-        onSold={(sale) => {
-          setLastSale(sale);
-          setClearedCart(null);
-          setCart(new Map());
-        }}
-      />
       <OpenShiftModal opened={openShiftOpened} onClose={() => setOpenShiftOpened(false)} />
       <CloseShiftModal opened={closeShiftOpened} onClose={() => setCloseShiftOpened(false)} />
     </Flex>
