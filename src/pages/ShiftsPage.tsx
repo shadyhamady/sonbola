@@ -1,3 +1,4 @@
+import { invoiceCount } from '../lib/arabic';
 import { Badge, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { listShifts } from '../api';
@@ -59,7 +60,7 @@ export function ShiftsPage() {
                   <Table.Td>
                     {fmt(salesTotalMilli)}{' '}
                     <Text span size="xs" c="dimmed">
-                      ({saleCount} فاتورة)
+                      ({invoiceCount(saleCount)})
                     </Text>
                   </Table.Td>
                   <Table.Td>{fmt(drawerPaymentsMilli)}</Table.Td>

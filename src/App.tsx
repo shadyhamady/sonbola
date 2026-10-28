@@ -15,7 +15,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
 import { ShiftsPage } from './pages/ShiftsPage';
 import { StaffPage } from './pages/StaffPage';
-import { PosScreen } from './pos/PosScreen';
+import { PosScreen, usePosSession } from './pos/PosScreen';
 
 const PAGES: Record<PageKey, () => React.JSX.Element> = {
   dashboard: DashboardPage,
@@ -36,6 +36,8 @@ export default function App() {
   const { data: settings, isLoading, error } = useSettings();
   const [mode, setMode] = useState<'pos' | 'admin'>('pos');
   const [page, setPage] = useState<PageKey>('dashboard');
+  // Owned here, not by PosScreen, so the cart and last sale survive a trip to admin.
+  const posSession = usePosSession();
 
   if (isLoading) {
     return (
@@ -48,7 +50,7 @@ export default function App() {
     return <Center h="100vh">{String(error)}</Center>;
   }
   if (!settings.isConfigured) return <SetupPage />;
-  if (mode === 'pos') return <PosScreen onAdmin={() => setMode('admin')} />;
+  if (mode === 'pos') return <PosScreen session={posSession} onAdmin={() => setMode('admin')} />;
 
   const Page = PAGES[page];
   return (

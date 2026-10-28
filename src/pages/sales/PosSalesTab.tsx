@@ -1,3 +1,4 @@
+import { invoiceCount } from '../../lib/arabic';
 import { Fragment, useState } from 'react';
 import { ActionIcon, Badge, Button, Stack, Table, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
@@ -150,7 +151,7 @@ export function PosSalesTab() {
             <Table.Tfoot>
               <Table.Tr fw={700}>
                 <Table.Td />
-                <Table.Td colSpan={3}>{`الإجمالي (${active.length} فاتورة)`}</Table.Td>
+                <Table.Td colSpan={3}>{`الإجمالي (${invoiceCount(active.length)})`}</Table.Td>
                 <Table.Td>{fmt(totalMilli)}</Table.Td>
                 <Table.Td>{fmt(grossMilli)}</Table.Td>
                 <Table.Td colSpan={2} />

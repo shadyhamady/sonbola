@@ -1,3 +1,4 @@
+import { invoiceCount } from '../lib/arabic';
 import { useMemo } from 'react';
 import { Badge, Grid, Group, Paper, Progress, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
@@ -92,7 +93,7 @@ export function DashboardPage() {
               <Text size="sm" c="dimmed">
                 مفتوحة منذ {formatTime(openShift.openedAt)}
                 {summary.data &&
-                  ` • المبيعات: ${fmt(summary.data.salesTotalMilli)} (${summary.data.saleCount} فاتورة)`}
+                  ` • المبيعات: ${fmt(summary.data.salesTotalMilli)} (${invoiceCount(summary.data.saleCount)})`}
               </Text>
             )}
           </StatCard>
