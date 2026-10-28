@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AppShell, Button, Group, NavLink, ScrollArea, Title } from '@mantine/core';
+import { AppShell, Button, Group, NavLink, ScrollArea, Text, Title } from '@mantine/core';
 import {
   IconBuildingStore,
   IconCash,
@@ -32,19 +32,36 @@ export type PageKey =
   | 'reports'
   | 'settings';
 
-const NAV: { key: PageKey; label: string; icon: typeof IconCash }[] = [
-  { key: 'dashboard', label: 'لوحة التحكم', icon: IconLayoutDashboard },
-  { key: 'sales', label: 'المبيعات', icon: IconReceipt },
-  { key: 'products', label: 'المنتجات والوصفات', icon: IconBuildingStore },
-  { key: 'production', label: 'الإنتاج', icon: IconToolsKitchen2 },
-  { key: 'inventory', label: 'المخزون', icon: IconPackage },
-  { key: 'purchases', label: 'المشتريات والموردون', icon: IconTruckDelivery },
-  { key: 'diesel', label: 'الديزل', icon: IconDroplet },
-  { key: 'staff', label: 'الموظفون والرواتب', icon: IconUsers },
-  { key: 'expenses', label: 'المصروفات', icon: IconCreditCard },
-  { key: 'shifts', label: 'الورديات', icon: IconClock },
-  { key: 'reports', label: 'التقارير', icon: IconChartBar },
-  { key: 'settings', label: 'الإعدادات', icon: IconSettings },
+type NavItem = { key: PageKey; label: string; icon: typeof IconCash };
+
+const NAV: { title: string | null; items: NavItem[] }[] = [
+  { title: null, items: [{ key: 'dashboard', label: 'لوحة التحكم', icon: IconLayoutDashboard }] },
+  {
+    title: 'البيع',
+    items: [
+      { key: 'sales', label: 'المبيعات', icon: IconReceipt },
+      { key: 'shifts', label: 'الورديات', icon: IconClock },
+    ],
+  },
+  {
+    title: 'الإنتاج والمخزون',
+    items: [
+      { key: 'products', label: 'المنتجات والوصفات', icon: IconBuildingStore },
+      { key: 'production', label: 'الإنتاج', icon: IconToolsKitchen2 },
+      { key: 'inventory', label: 'المخزون', icon: IconPackage },
+      { key: 'diesel', label: 'الديزل', icon: IconDroplet },
+    ],
+  },
+  {
+    title: 'المال',
+    items: [
+      { key: 'purchases', label: 'المشتريات والموردون', icon: IconTruckDelivery },
+      { key: 'expenses', label: 'المصروفات', icon: IconCreditCard },
+      { key: 'staff', label: 'الموظفون والرواتب', icon: IconUsers },
+      { key: 'reports', label: 'التقارير', icon: IconChartBar },
+    ],
+  },
+  { title: 'الإعداد', items: [{ key: 'settings', label: 'الإعدادات', icon: IconSettings }] },
 ];
 
 interface Props {
@@ -68,15 +85,24 @@ export function AdminShell({ page, onNavigate, onPos, children }: Props) {
       </AppShell.Header>
       <AppShell.Navbar p="xs">
         <ScrollArea>
-          {NAV.map(({ key, label, icon: Icon }) => (
-            <NavLink
-              key={key}
-              label={label}
-              leftSection={<Icon size={18} />}
-              active={page === key}
-              onClick={() => onNavigate(key)}
-              style={{ borderRadius: 'var(--mantine-radius-md)' }}
-            />
+          {NAV.map(({ title, items }) => (
+            <div key={title ?? 'home'}>
+              {title && (
+                <Text size="xs" fw={700} c="dimmed" px="sm" pt="md" pb={4}>
+                  {title}
+                </Text>
+              )}
+              {items.map(({ key, label, icon: Icon }) => (
+                <NavLink
+                  key={key}
+                  label={label}
+                  leftSection={<Icon size={18} />}
+                  active={page === key}
+                  onClick={() => onNavigate(key)}
+                  style={{ borderRadius: 'var(--mantine-radius-md)' }}
+                />
+              ))}
+            </div>
           ))}
         </ScrollArea>
       </AppShell.Navbar>

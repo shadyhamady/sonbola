@@ -62,7 +62,7 @@ export function ProductsPage() {
         />
       </Group>
 
-      <Table.ScrollContainer minWidth={1100}>
+      <Table.ScrollContainer minWidth={820}>
         <Table striped highlightOnHover verticalSpacing="xs">
           <Table.Thead>
             <Table.Tr>
@@ -70,12 +70,8 @@ export function ProductsPage() {
               <Table.Th>الفئة</Table.Th>
               <Table.Th>السعر</Table.Th>
               <Table.Th>المخزون</Table.Th>
-              <Table.Th>تكلفة المكونات</Table.Th>
-              <Table.Th>أجر الخباز</Table.Th>
-              <Table.Th>التشغيل</Table.Th>
-              <Table.Th>التكلفة الكاملة</Table.Th>
+              <Table.Th>تكلفة القطعة</Table.Th>
               <Table.Th>الهامش</Table.Th>
-              <Table.Th>الهامش %</Table.Th>
               <Table.Th>الوصفة</Table.Th>
               <Table.Th>الكمية المنتجة</Table.Th>
               <Table.Th />
@@ -85,7 +81,12 @@ export function ProductsPage() {
             {rows.map((p) => {
               const margin = p.priceMilli - p.fullUnitCostMilli;
               return (
-                <Table.Tr key={p.id} opacity={p.archived ? 0.55 : 1}>
+                <Table.Tr
+                  key={p.id}
+                  opacity={p.archived ? 0.55 : 1}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setModal({ opened: true, product: p })}
+                >
                   <Table.Td fw={600}>
                     {p.name}
                     {p.archived && (
@@ -105,13 +106,22 @@ export function ProductsPage() {
                     )}
                   </Table.Td>
                   <Table.Td c={p.stockQty < 0 ? 'red' : undefined}>{formatQty(p.stockQty)}</Table.Td>
-                  <Table.Td>{fmt(p.ingredientCostPerUnitMilli)}</Table.Td>
-                  <Table.Td>{fmt(p.laborCostPerUnitMilli)}</Table.Td>
-                  <Table.Td>{fmt(p.overheadPerUnitMilli)}</Table.Td>
-                  <Table.Td fw={600}>{fmt(p.fullUnitCostMilli)}</Table.Td>
-                  <Table.Td c={margin < 0 ? 'red' : undefined}>{fmt(margin)}</Table.Td>
+                  <Table.Td>
+                    <Text fw={600} size="sm">
+                      {fmt(p.fullUnitCostMilli)}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      مكونات {fmt(p.ingredientCostPerUnitMilli)} • أجر {fmt(p.laborCostPerUnitMilli)} • تشغيل{' '}
+                      {fmt(p.overheadPerUnitMilli)}
+                    </Text>
+                  </Table.Td>
                   <Table.Td c={margin < 0 ? 'red' : undefined}>
-                    {p.priceMilli > 0 ? formatPct(margin / p.priceMilli) : '—'}
+                    <Text size="sm" fw={600} c="inherit">
+                      {fmt(margin)}
+                    </Text>
+                    <Text size="xs" c={margin < 0 ? 'red' : 'dimmed'}>
+                      {p.priceMilli > 0 ? formatPct(margin / p.priceMilli) : '—'}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     {p.recipeLineCount === 0 ? (
@@ -123,7 +133,7 @@ export function ProductsPage() {
                     )}
                   </Table.Td>
                   <Table.Td>{formatQty(p.producedUnits)}</Table.Td>
-                  <Table.Td>
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4} wrap="nowrap">
                       <Tooltip label="تعديل">
                         <ActionIcon
@@ -151,7 +161,7 @@ export function ProductsPage() {
             })}
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={13}>
+                <Table.Td colSpan={9}>
                   <Text c="dimmed" ta="center" py="md">
                     {products.isLoading ? 'جارٍ التحميل…' : 'لا توجد منتجات'}
                   </Text>

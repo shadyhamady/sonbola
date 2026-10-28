@@ -106,69 +106,77 @@ function PayrollTab({ staff }: { staff: Staff }) {
           صرف راتب
         </Button>
       </Group>
-      <Table.ScrollContainer minWidth={700}>
-        <Table striped highlightOnHover>
-          <Table.Thead>
+      <Table striped highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>التاريخ</Table.Th>
+            <Table.Th>الصافي</Table.Th>
+            <Table.Th>طريقة الدفع</Table.Th>
+            <Table.Th w={40} />
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {payments.length === 0 && (
             <Table.Tr>
-              <Table.Th>التاريخ</Table.Th>
-              <Table.Th>الفترة</Table.Th>
-              <Table.Th>الأساسي</Table.Th>
-              <Table.Th>مكافأة</Table.Th>
-              <Table.Th>خصومات</Table.Th>
-              <Table.Th>الصافي</Table.Th>
-              <Table.Th>طريقة الدفع</Table.Th>
-              <Table.Th />
+              <Table.Td colSpan={4}>
+                <Text c="dimmed" ta="center">
+                  لا توجد دفعات
+                </Text>
+              </Table.Td>
             </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {payments.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={8}>
-                  <Text c="dimmed" ta="center">
-                    لا توجد دفعات
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-            {payments.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td>{formatDate(p.paidAt)}</Table.Td>
-                <Table.Td>{p.period ?? '—'}</Table.Td>
-                <Table.Td>{fmt(p.baseMilli)}</Table.Td>
-                <Table.Td>{fmt(p.bonusMilli)}</Table.Td>
-                <Table.Td>{fmt(p.deductionsMilli)}</Table.Td>
-                <Table.Td fw={600}>{fmt(p.netMilli)}</Table.Td>
-                <Table.Td>
-                  <Group gap={4} wrap="nowrap">
-                    {METHOD_LABELS[p.method]}
-                    {p.paidFromDrawer && (
-                      <Badge size="xs" variant="light">
-                        من الدرج
-                      </Badge>
-                    )}
-                  </Group>
-                </Table.Td>
-                <Table.Td>
-                  {!p.locked && (
-                    <ActionIcon variant="subtle" color="red" onClick={() => confirmDelete(p.id)} aria-label="حذف">
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-          {payments.length > 0 && (
-            <Table.Tfoot>
-              <Table.Tr fw={700}>
-                <Table.Td colSpan={5}>الإجمالي</Table.Td>
-                <Table.Td>{fmt(total)}</Table.Td>
-                <Table.Td colSpan={2} />
-              </Table.Tr>
-            </Table.Tfoot>
           )}
-        </Table>
-      </Table.ScrollContainer>
+          {payments.map((p) => (
+            <Table.Tr key={p.id}>
+              <Table.Td>
+                <Text size="sm">{formatDate(p.paidAt)}</Text>
+                {p.period && (
+                  <Text size="xs" c="dimmed">
+                    {p.period}
+                  </Text>
+                )}
+              </Table.Td>
+              <Table.Td>
+                <Text size="sm" fw={600}>
+                  {fmt(p.netMilli)}
+                </Text>
+                {(p.bonusMilli > 0 || p.deductionsMilli > 0) && (
+                  <Text size="xs" c="dimmed">
+                    أساسي {fmt(p.baseMilli)}
+                    {p.bonusMilli > 0 && ` + مكافأة ${fmt(p.bonusMilli)}`}
+                    {p.deductionsMilli > 0 && ` − خصم ${fmt(p.deductionsMilli)}`}
+                  </Text>
+                )}
+              </Table.Td>
+              <Table.Td>
+                <Group gap={4} wrap="nowrap">
+                  {METHOD_LABELS[p.method]}
+                  {p.paidFromDrawer && (
+                    <Badge size="xs" variant="light">
+                      من الدرج
+                    </Badge>
+                  )}
+                </Group>
+              </Table.Td>
+              <Table.Td>
+                {!p.locked && (
+                  <ActionIcon variant="subtle" color="red" onClick={() => confirmDelete(p.id)} aria-label="حذف">
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                )}
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+        {payments.length > 0 && (
+          <Table.Tfoot>
+            <Table.Tr fw={700}>
+              <Table.Td>الإجمالي</Table.Td>
+              <Table.Td>{fmt(total)}</Table.Td>
+              <Table.Td colSpan={2} />
+            </Table.Tr>
+          </Table.Tfoot>
+        )}
+      </Table>
       {paying && <PayrollModal staff={staff} onClose={() => setPaying(false)} />}
     </Stack>
   );
@@ -194,7 +202,7 @@ function StatementTab({ staff }: { staff: Staff }) {
           المدفوع في الفترة: <Text span fw={700}>{fmt(data?.paidMilli ?? 0)}</Text>
         </Text>
       </Group>
-      <Table.ScrollContainer minWidth={700}>
+      <Table.ScrollContainer minWidth={520}>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -253,7 +261,7 @@ function RatesTab({ staff }: { staff: Staff }) {
       <Text size="sm" c="dimmed">
         اترك الحقل فارغاً لاستخدام أجر المنتج الافتراضي. يُحفظ التغيير عند مغادرة الحقل.
       </Text>
-      <Table.ScrollContainer minWidth={700}>
+      <Table.ScrollContainer minWidth={520}>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>

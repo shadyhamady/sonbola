@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Grid, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
+import { Grid, Group, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Tabs, Text, Title } from '@mantine/core';
 import { DonutChart, LineChart } from '@mantine/charts';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -266,7 +266,20 @@ const MONTH_COLUMNS: { label: string; key: Exclude<keyof MonthRow, 'month'> }[] 
   { label: 'أجور الإنتاج المستحقة', key: 'bakerPayEarnedMilli' },
 ];
 
+/** The first 8 columns are the workbook's cash-view P&L; the rest are production and diesel detail. */
+const CASH_COLUMN_COUNT = 8;
+
+/** Keeps the month column visible while the wide table scrolls sideways. */
+const STICKY = {
+  position: 'sticky',
+  insetInlineStart: 0,
+  zIndex: 1,
+  background: 'var(--mantine-color-body)',
+} as const;
+
 function MonthlySummaryTab() {
+  const [detailed, setDetailed] = useState(false);
+  const columns = detailed ? MONTH_COLUMNS : MONTH_COLUMNS.slice(0, CASH_COLUMN_COUNT);
   const { fmt } = useMoney();
   const currentYear = dayjs().year();
   const [year, setYear] = useState(currentYear);
@@ -293,22 +306,32 @@ function MonthlySummaryTab() {
 
   return (
     <Stack gap="lg">
-      <Select
-        label="السنة"
-        w={160}
-        allowDeselect={false}
-        data={Array.from({ length: 7 }, (_, i) => String(currentYear - 3 + i))}
-        value={String(year)}
-        onChange={(v) => v && setYear(Number(v))}
-      />
+      <Group align="flex-end" justify="space-between">
+        <Select
+          label="السنة"
+          w={160}
+          allowDeselect={false}
+          data={Array.from({ length: 7 }, (_, i) => String(currentYear - 3 + i))}
+          value={String(year)}
+          onChange={(v) => v && setYear(Number(v))}
+        />
+        <SegmentedControl
+          value={detailed ? 'all' : 'cash'}
+          onChange={(v) => setDetailed(v === 'all')}
+          data={[
+            { value: 'cash', label: 'الأرباح والخسائر' },
+            { value: 'all', label: 'كل الأعمدة' },
+          ]}
+        />
+      </Group>
 
       <Paper withBorder p="md" radius="md">
-        <Table.ScrollContainer minWidth={1400}>
+        <Table.ScrollContainer minWidth={detailed ? 1400 : 900}>
           <Table striped highlightOnHover>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>الشهر</Table.Th>
-                {MONTH_COLUMNS.map((c) => (
+                <Table.Th style={STICKY}>الشهر</Table.Th>
+                {columns.map((c) => (
                   <Table.Th key={c.key}>{c.label}</Table.Th>
                 ))}
               </Table.Tr>
@@ -316,8 +339,10 @@ function MonthlySummaryTab() {
             <Table.Tbody>
               {rows.map((row) => (
                 <Table.Tr key={row.month}>
-                  <Table.Td fw={600}>{dayjs().month(row.month - 1).format('MMMM')}</Table.Td>
-                  {MONTH_COLUMNS.map((c) => (
+                  <Table.Td fw={600} style={STICKY}>
+                    {dayjs().month(row.month - 1).format('MMMM')}
+                  </Table.Td>
+                  {columns.map((c) => (
                     <Table.Td key={c.key} c={c.key === 'netProfitMilli' ? netColor(row.netProfitMilli) : undefined}>
                       {cell(c.key, row)}
                     </Table.Td>
@@ -326,8 +351,8 @@ function MonthlySummaryTab() {
               ))}
               {rows.length > 0 && (
                 <Table.Tr fw={700}>
-                  <Table.Td>الإجمالي</Table.Td>
-                  {MONTH_COLUMNS.map((c) => (
+                  <Table.Td style={STICKY}>الإجمالي</Table.Td>
+                  {columns.map((c) => (
                     <Table.Td key={c.key} c={c.key === 'netProfitMilli' ? netColor(totals.netProfitMilli) : undefined}>
                       {cell(c.key, totals)}
                     </Table.Td>
