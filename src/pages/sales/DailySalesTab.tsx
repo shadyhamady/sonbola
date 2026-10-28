@@ -3,7 +3,7 @@ import { ActionIcon, Alert, Button, Group, Modal, SimpleGrid, Stack, Table, Text
 import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { modals } from '@mantine/modals';
-import { IconAlertTriangle, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { createDailySale, deleteDailySale, listDailySales, updateDailySale } from '../../api';
 import type { DailySale, DailySaleInput } from '../../api/types';
@@ -77,7 +77,7 @@ export function DailySalesTab() {
                 <Table.Td>
                   <Group gap={4} wrap="nowrap">
                     <ActionIcon variant="subtle" onClick={() => setEditing(r)} aria-label="تعديل">
-                      <IconEdit size={18} />
+                      <IconPencil size={18} />
                     </ActionIcon>
                     <ActionIcon
                       variant="subtle"

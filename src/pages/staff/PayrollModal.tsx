@@ -71,7 +71,7 @@ export function PayrollModal({ staff, onClose }: Props) {
           </Group>
           <Group justify="space-between">
             <Text fw={600}>الصافي</Text>
-            <Text fw={700} size="lg" c={netMilli <= 0 ? 'red' : undefined}>
+            <Text fw={700} size="lg" c={netMilli <= 0 ? 'red.8' : undefined}>
               {fmt(netMilli)}
             </Text>
           </Group>

@@ -25,7 +25,9 @@ export function ProductionHistory() {
   return (
     <Paper withBorder p="md">
       <Stack>
-        <Title order={4}>سجل الإنتاج</Title>
+        <Title order={3} size="h4">
+          سجل الإنتاج
+        </Title>
         <RangePicker value={range} onChange={setRange} />
         <Table.ScrollContainer minWidth={900}>
           <Table striped highlightOnHover>

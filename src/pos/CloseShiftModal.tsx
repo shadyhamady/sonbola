@@ -41,18 +41,18 @@ export function CloseShiftModal({ opened, onClose }: Props) {
 export function CashDifference({ diffMilli, fmt }: { diffMilli: number; fmt: (m: number) => string }) {
   if (diffMilli === 0)
     return (
-      <Text c="green" fw={700}>
+      <Text c="green.8" fw={700}>
         {fmt(0)} (متطابق)
       </Text>
     );
   if (diffMilli < 0)
     return (
-      <Text c="red" fw={700}>
+      <Text c="red.8" fw={700}>
         عجز {fmt(-diffMilli)}
       </Text>
     );
   return (
-    <Text c="orange" fw={700}>
+    <Text c="orange.9" fw={700}>
       زيادة {fmt(diffMilli)}
     </Text>
   );

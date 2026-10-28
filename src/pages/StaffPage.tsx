@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionIcon, Badge, Button, Group, Stack, Switch, Table, Text, Title, Tooltip } from '@mantine/core';
-import { IconArchive, IconArchiveOff, IconPencil, IconPlus } from '@tabler/icons-react';
+import { IconArchive, IconArchiveOff, IconChevronLeft, IconPencil, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listStaff, setStaffArchived } from '../api';
 import { PAY_TYPE_LABELS } from '../api/labels';
@@ -78,8 +78,19 @@ export function StaffPage() {
             {staff.map((s) => (
               <Table.Tr
                 key={s.id}
-                style={{ cursor: 'pointer', opacity: s.archived ? 0.6 : 1 }}
+                tabIndex={0}
+                role="button"
+                aria-label={`عرض تفاصيل ${s.name}`}
+                className="mantine-focus-auto"
+                style={{ cursor: 'pointer', opacity: s.archived ? 0.6 : 1, outlineOffset: -2 }}
                 onClick={() => setSelectedId(s.id)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedId(s.id);
+                  }
+                }}
               >
                 <Table.Td fw={600}>
                   {s.name}
@@ -116,6 +127,16 @@ export function StaffPage() {
                         {s.archived ? <IconArchiveOff size={16} /> : <IconArchive size={16} />}
                       </ActionIcon>
                     </Tooltip>
+                    <Button
+                      variant="subtle"
+                      color="gray"
+                      size="compact-sm"
+                      tabIndex={-1}
+                      rightSection={<IconChevronLeft size={16} />}
+                      onClick={() => setSelectedId(s.id)}
+                    >
+                      عرض
+                    </Button>
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -146,7 +167,7 @@ function OwedCell({ owed, fmt }: { owed: number | null; fmt: (milli: number) => 
   if (owed > 0)
     return (
       <Group gap={6} wrap="nowrap">
-        <Text fw={600} c="green">
+        <Text fw={600} c="green.8">
           {fmt(owed)}
         </Text>
         <Badge color="green" variant="light">
@@ -157,7 +178,7 @@ function OwedCell({ owed, fmt }: { owed: number | null; fmt: (milli: number) => 
   if (owed < 0)
     return (
       <Group gap={6} wrap="nowrap">
-        <Text fw={600} c="orange">
+        <Text fw={600} c="orange.9">
           {fmt(-owed)}
         </Text>
         <Badge color="orange" variant="light">

@@ -1,4 +1,18 @@
-import { ActionIcon, Button, Center, Divider, Flex, Group, Paper, ScrollArea, Stack, Text } from '@mantine/core';
+import { useState } from 'react';
+import {
+  ActionIcon,
+  Button,
+  Center,
+  Divider,
+  Flex,
+  Group,
+  NumberInput,
+  Paper,
+  ScrollArea,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { IconArrowBackUp, IconMinus, IconPlus, IconReceipt, IconShoppingCart, IconTrash } from '@tabler/icons-react';
 import { voidSale } from '../api';
@@ -17,6 +31,8 @@ interface Props {
   canRestore: boolean;
   onRestore: () => void;
   onCheckout: () => void;
+  /** Cart has sellable lines and a shift is open. */
+  canCheckout: boolean;
   checkingOut: boolean;
   lastSale: Sale | null;
   onLastSaleVoided: () => void;
@@ -31,6 +47,7 @@ export function Cart({
   canRestore,
   onRestore,
   onCheckout,
+  canCheckout,
   checkingOut,
   lastSale,
   onLastSaleVoided,
@@ -102,9 +119,7 @@ export function Cart({
                     <ActionIcon size="xl" variant="default" onClick={() => onSetQty(product.id, qty - 1)} aria-label="إنقاص">
                       <IconMinus size={20} />
                     </ActionIcon>
-                    <Text fw={700} size="xl" miw={36} ta="center">
-                      {qty}
-                    </Text>
+                    <QtyField name={product.name} qty={qty} onCommit={(n) => onSetQty(product.id, n)} />
                     <ActionIcon size="xl" variant="default" onClick={() => onSetQty(product.id, qty + 1)} aria-label="زيادة">
                       <IconPlus size={20} />
                     </ActionIcon>
@@ -142,7 +157,7 @@ export function Cart({
                   })
                 }
               >
-                إلغاء
+                إلغاء الفاتورة
               </Button>
             </Group>
           </Paper>
@@ -155,10 +170,70 @@ export function Cart({
             {fmt(totalMilli)}
           </Text>
         </Group>
-        <Button size="xl" fullWidth color="green" disabled={lines.length === 0 || !openShift} loading={checkingOut} onClick={onCheckout}>
-          إتمام البيع (نقداً)
-        </Button>
+        <Stack gap={4}>
+          <Button size="xl" fullWidth disabled={!canCheckout} loading={checkingOut} onClick={onCheckout}>
+            إتمام البيع (نقداً)
+          </Button>
+          <Text size="xs" c="dimmed" ta="center">
+            F9 لإتمام البيع • F2 للبحث
+          </Text>
+        </Stack>
       </Stack>
     </Flex>
+  );
+}
+
+/** Quantity shown as a number; clicking it switches to a typed input that commits on Enter or blur. */
+function QtyField({ name, qty, onCommit }: { name: string; qty: number; onCommit: (qty: number) => void }) {
+  const [draft, setDraft] = useState<number | string | null>(null);
+
+  if (draft === null) {
+    return (
+      <UnstyledButton
+        onClick={() => setDraft(qty)}
+        aria-label={`كمية ${name}: ${qty}، اضغط للتعديل`}
+        miw={44}
+        mih={44}
+        px={4}
+        style={{ borderRadius: 'var(--mantine-radius-sm)', textAlign: 'center' }}
+      >
+        <Text fw={700} size="xl" span>
+          {qty}
+        </Text>
+      </UnstyledButton>
+    );
+  }
+
+  const commit = () => {
+    const n = Number(draft);
+    if (Number.isInteger(n) && n >= 1 && n !== qty) onCommit(n);
+    setDraft(null);
+  };
+
+  return (
+    <NumberInput
+      autoFocus
+      value={draft}
+      onChange={setDraft}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          commit();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setDraft(null);
+        }
+      }}
+      min={1}
+      allowDecimal={false}
+      allowNegative={false}
+      hideControls
+      size="md"
+      w={64}
+      aria-label={`كمية ${name}`}
+      styles={{ input: { textAlign: 'center', fontWeight: 700 } }}
+    />
   );
 }

@@ -6,3 +6,17 @@ export function invoiceCount(n: number): string {
   if (n % 100 >= 3 && n % 100 <= 10) return `${n} فواتير`;
   return `${n} فاتورة`;
 }
+
+/**
+ * Folds Arabic spelling variants for search: hamza-carrying alefs → ا, ة → ه, ى → ي;
+ * strips tatweel and harakat. Latin text is lowercased.
+ */
+export function normalizeArabic(s: string): string {
+  return s
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .toLowerCase()
+    .trim();
+}

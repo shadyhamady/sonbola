@@ -32,7 +32,7 @@ export function SetupPage() {
           )}
         >
           <Stack>
-            <Title order={2} ta="center">
+            <Title order={1} size="h2" ta="center">
               إعداد المخبز
             </Title>
             <TextInput label="اسم المخبز" {...form.getInputProps('bakeryName')} />

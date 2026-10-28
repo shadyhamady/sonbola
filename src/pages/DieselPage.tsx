@@ -103,7 +103,7 @@ export function DieselPage() {
           <Text size="sm" c="dimmed">
             الديزل في الخزان
           </Text>
-          <Text fw={700} size="xl" c={(snapshot?.dieselInTankL ?? 0) < 0 ? 'red' : undefined}>
+          <Text fw={700} size="xl" c={(snapshot?.dieselInTankL ?? 0) < 0 ? 'red.8' : undefined}>
             {formatQty(snapshot?.dieselInTankL ?? 0)} لتر
           </Text>
         </Card>
@@ -146,7 +146,9 @@ export function DieselPage() {
       <Card withBorder>
         <form onSubmit={submit}>
           <Stack>
-            <Title order={4}>تسجيل قراءة</Title>
+            <Title order={3} size="h4">
+              تسجيل قراءة
+            </Title>
             <SimpleGrid cols={{ base: 2, lg: 4 }}>
               <DatePickerInput label="التاريخ" valueFormat="YYYY/MM/DD" {...form.getInputProps('date')} />
               <NumberInput

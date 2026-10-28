@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AppShell, Button, Group, NavLink, ScrollArea, Text, Title } from '@mantine/core';
+import { AppShell, Badge, Button, Group, NavLink, ScrollArea, Text, Title } from '@mantine/core';
 import {
   IconBuildingStore,
   IconCash,
@@ -16,6 +16,8 @@ import {
   IconTruckDelivery,
   IconUsers,
 } from '@tabler/icons-react';
+import { useOpenShift } from '../components/PaymentFields';
+import { formatTime } from '../lib/dates';
 import { useSettings } from '../lib/useSettings';
 
 export type PageKey =
@@ -73,11 +75,26 @@ interface Props {
 
 export function AdminShell({ page, onNavigate, onPos, children }: Props) {
   const { data: settings } = useSettings();
+  const { data: openShift } = useOpenShift();
   return (
     <AppShell header={{ height: 60 }} navbar={{ width: 240, breakpoint: 0 }} padding="md">
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
-          <Title order={3}>{settings?.bakeryName}</Title>
+          <Group gap="sm" wrap="nowrap">
+            {/* h1: the app name; page titles are h2 and in-page sections h3. */}
+            <Title order={1} size="h3">
+              {settings?.bakeryName}
+            </Title>
+            {openShift ? (
+              <Badge color="green" variant="light">
+                {`وردية مفتوحة منذ ${formatTime(openShift.openedAt)}`}
+              </Badge>
+            ) : (
+              <Badge color="gray" variant="light">
+                لا توجد وردية مفتوحة
+              </Badge>
+            )}
+          </Group>
           <Button leftSection={<IconShoppingCart size={18} />} onClick={onPos}>
             نقطة البيع
           </Button>

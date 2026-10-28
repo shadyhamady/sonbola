@@ -136,7 +136,7 @@ export function PosSalesTab() {
                           </Table.Tbody>
                         </Table>
                         {voided && (
-                          <Text size="sm" c="red" mt={4}>
+                          <Text size="sm" c="red.8" mt={4}>
                             {`أُلغيت في ${formatDateTime(s.voidedAt!)}`}
                           </Text>
                         )}

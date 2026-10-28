@@ -18,5 +18,5 @@ const qtyFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
 export const formatQty = (n: number) => qtyFormat.format(n);
 
 const pctFormat = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-/** `f` is a fraction: 0.125 → "12.5%". */
-export const formatPct = (f: number) => `${pctFormat.format(f * 100)}%`;
+/** `f` is a fraction: 0.125 → "12.5%". Wrapped in an LTR isolate so "-12.5%" isn't reordered inside RTL text. */
+export const formatPct = (f: number) => `\u2066${pctFormat.format(f * 100)}%\u2069`;

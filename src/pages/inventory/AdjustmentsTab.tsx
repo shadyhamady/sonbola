@@ -89,14 +89,14 @@ export function AdjustmentsTab() {
                 <Table.Td>{formatDateTime(r.adjustedAt)}</Table.Td>
                 <Table.Td>{ITEM_TYPE_LABELS[r.itemType]}</Table.Td>
                 <Table.Td fw={600}>{r.itemName}</Table.Td>
-                <Table.Td c={r.qtyDelta < 0 ? 'red' : 'green'}>
+                <Table.Td c={r.qtyDelta < 0 ? 'red.8' : 'green.8'}>
                   <span dir="ltr">
                     {r.qtyDelta > 0 ? '+' : ''}
                     {formatQty(r.qtyDelta)}
                   </span>{' '}
                   {r.itemType === 'product' ? PRODUCT_UNIT : UNIT_LABELS[r.unit]}
                 </Table.Td>
-                <Table.Td c={r.valueMilli < 0 ? 'red' : undefined}>{fmt(r.valueMilli)}</Table.Td>
+                <Table.Td c={r.valueMilli < 0 ? 'red.8' : undefined}>{fmt(r.valueMilli)}</Table.Td>
                 <Table.Td>{ADJ_REASON_LABELS[r.reason]}</Table.Td>
                 <Table.Td>{r.note}</Table.Td>
                 <Table.Td>
@@ -112,7 +112,7 @@ export function AdjustmentsTab() {
           <Table.Tfoot>
             <Table.Tr>
               <Table.Th colSpan={4}>الإجمالي</Table.Th>
-              <Table.Th c={totalValue < 0 ? 'red' : undefined}>{fmt(totalValue)}</Table.Th>
+              <Table.Th c={totalValue < 0 ? 'red.8' : undefined}>{fmt(totalValue)}</Table.Th>
               <Table.Th colSpan={3} />
             </Table.Tr>
           </Table.Tfoot>

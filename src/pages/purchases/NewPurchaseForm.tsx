@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { ActionIcon, Button, Group, NumberInput, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
+import { type RefObject, useEffect, useRef, useState } from 'react';
+import { ActionIcon, Button, Group, Modal, NumberInput, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { randomId } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { createPurchase, listIngredients, listSuppliers } from '../../api';
@@ -26,7 +27,40 @@ const newLine = (): Line => ({ key: randomId(), ingredientId: null, qty: '', uni
 /** Display preview only; the backend computes the stored line totals. */
 const lineTotalMilli = (l: Line) => Math.round((Number(l.qty) || 0) * toMilli(Number(l.unitCost) || 0));
 
-export function NewPurchaseForm({ onDone }: { onDone: () => void }) {
+/** «شراء جديد» modal; dismissing it with unsaved entries asks before discarding them. */
+export function NewPurchaseModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  // Set by the mounted form; read only when the user tries to dismiss the modal.
+  const dirtyRef = useRef(false);
+  const close = () => {
+    dirtyRef.current = false;
+    onClose();
+  };
+  const requestClose = () => {
+    if (!dirtyRef.current) return close();
+    modals.openConfirmModal({
+      title: 'تجاهل التغييرات؟',
+      children: <Text size="sm">لم يُحفظ هذا الشراء بعد.</Text>,
+      labels: { confirm: 'تجاهل التغييرات', cancel: 'متابعة الإدخال' },
+      confirmProps: { color: 'red' },
+      onConfirm: close,
+    });
+  };
+  return (
+    <Modal opened={opened} onClose={requestClose} title="شراء جديد" size="xl">
+      {opened && <NewPurchaseForm onDone={close} onCancel={requestClose} dirtyRef={dirtyRef} />}
+    </Modal>
+  );
+}
+
+interface FormProps {
+  /** Closes after a successful save. */
+  onDone: () => void;
+  /** Closes on «إلغاء», confirming first when there are unsaved entries. */
+  onCancel: () => void;
+  dirtyRef: RefObject<boolean>;
+}
+
+function NewPurchaseForm({ onDone, onCancel, dirtyRef }: FormProps) {
   const { fmt } = useMoney();
   const { data: suppliers = [] } = useQuery({
     queryKey: ['list_suppliers', false],
@@ -58,6 +92,9 @@ export function NewPurchaseForm({ onDone }: { onDone: () => void }) {
   const [paidNow, setPaidNow] = useState<number | string | null>(null);
   const [payment, setPayment] = useState<PaymentValue>({ method: 'cash', paidFromDrawer: false });
   const create = useMutate(createPurchase, 'تم تسجيل الشراء', onDone);
+  useEffect(() => {
+    dirtyRef.current = form.isDirty() || paidNow !== null || payment.method !== 'cash' || payment.paidFromDrawer;
+  });
 
   const totalMilli = form.values.lines.reduce((s, l) => s + lineTotalMilli(l), 0);
   const paidNowMilli = paidNow === null ? totalMilli : toMilli(Number(paidNow) || 0);
@@ -186,7 +223,7 @@ export function NewPurchaseForm({ onDone }: { onDone: () => void }) {
         <TextInput label="ملاحظة" {...form.getInputProps('note')} />
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={onDone}>
+          <Button variant="default" onClick={onCancel}>
             إلغاء
           </Button>
           <Button type="submit" loading={create.isPending} disabled={paidNowMilli > totalMilli}>

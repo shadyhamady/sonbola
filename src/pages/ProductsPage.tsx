@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionIcon, Badge, Button, Chip, Group, Stack, Switch, Table, Text, Title, Tooltip } from '@mantine/core';
-import { IconArchive, IconArchiveOff, IconCategory, IconEdit, IconPlus } from '@tabler/icons-react';
+import { IconArchive, IconArchiveOff, IconCategory, IconPencil, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listProductCategories, listProducts, setProductArchived } from '../api';
 import type { Product } from '../api/types';
@@ -105,7 +105,7 @@ export function ProductsPage() {
                       fmt(p.priceMilli)
                     )}
                   </Table.Td>
-                  <Table.Td c={p.stockQty < 0 ? 'red' : undefined}>{formatQty(p.stockQty)}</Table.Td>
+                  <Table.Td c={p.stockQty < 0 ? 'red.8' : undefined}>{formatQty(p.stockQty)}</Table.Td>
                   <Table.Td>
                     <Text fw={600} size="sm">
                       {fmt(p.fullUnitCostMilli)}
@@ -115,11 +115,11 @@ export function ProductsPage() {
                       {fmt(p.overheadPerUnitMilli)}
                     </Text>
                   </Table.Td>
-                  <Table.Td c={margin < 0 ? 'red' : undefined}>
+                  <Table.Td c={margin < 0 ? 'red.8' : undefined}>
                     <Text size="sm" fw={600} c="inherit">
                       {fmt(margin)}
                     </Text>
-                    <Text size="xs" c={margin < 0 ? 'red' : 'dimmed'}>
+                    <Text size="xs" c={margin < 0 ? 'red.8' : 'dimmed'}>
                       {p.priceMilli > 0 ? formatPct(margin / p.priceMilli) : '—'}
                     </Text>
                   </Table.Td>
@@ -141,7 +141,7 @@ export function ProductsPage() {
                           onClick={() => setModal({ opened: true, product: p })}
                           aria-label="تعديل"
                         >
-                          <IconEdit size={18} />
+                          <IconPencil size={18} />
                         </ActionIcon>
                       </Tooltip>
                       <Tooltip label={p.archived ? 'إلغاء الأرشفة' : 'أرشفة'}>

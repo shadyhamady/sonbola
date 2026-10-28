@@ -25,7 +25,7 @@ import { formatDateTime } from '../../lib/dates';
 import { formatQty } from '../../lib/money';
 import { useMutate } from '../../lib/useMutate';
 import { useMoney } from '../../lib/useSettings';
-import { NewPurchaseForm } from './NewPurchaseForm';
+import { NewPurchaseModal } from './NewPurchaseForm';
 import { PurchasePaymentForm } from './PurchasePaymentForm';
 
 const NO_SUPPLIER = 'بدون مورد';
@@ -147,7 +147,7 @@ export function PurchasesTab() {
                     <Table.Td>{p.invoiceNo}</Table.Td>
                     <Table.Td fw={600}>{fmt(p.totalMilli)}</Table.Td>
                     <Table.Td>{fmt(p.paidMilli)}</Table.Td>
-                    <Table.Td c={p.balanceMilli > 0 ? 'red' : undefined}>{fmt(p.balanceMilli)}</Table.Td>
+                    <Table.Td c={p.balanceMilli > 0 ? 'red.8' : undefined}>{fmt(p.balanceMilli)}</Table.Td>
                     <Table.Td>
                       <Badge color={PURCHASE_STATUS[p.status].color} variant="light">
                         {PURCHASE_STATUS[p.status].label}
@@ -196,9 +196,7 @@ export function PurchasesTab() {
         </Table>
       </Table.ScrollContainer>
 
-      <Modal opened={newOpened} onClose={() => setNewOpened(false)} title="شراء جديد" size="xl">
-        {newOpened && <NewPurchaseForm onDone={() => setNewOpened(false)} />}
-      </Modal>
+      <NewPurchaseModal opened={newOpened} onClose={() => setNewOpened(false)} />
       <Modal opened={paying !== null} onClose={() => setPaying(null)} title="تسجيل دفعة">
         {paying && <PurchasePaymentForm purchase={paying} onDone={() => setPaying(null)} />}
       </Modal>
@@ -217,7 +215,7 @@ function PurchaseDetails({
   return (
     <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" py="xs">
       <Paper withBorder p="sm">
-        <Title order={6} mb="xs">
+        <Title order={3} size="h6" mb="xs">
           الأصناف
         </Title>
         <Table withRowBorders>
@@ -249,7 +247,7 @@ function PurchaseDetails({
         )}
       </Paper>
       <Paper withBorder p="sm">
-        <Title order={6} mb="xs">
+        <Title order={3} size="h6" mb="xs">
           الدفعات
         </Title>
         {purchase.payments.length === 0 ? (

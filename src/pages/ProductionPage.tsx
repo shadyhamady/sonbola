@@ -124,7 +124,7 @@ export function ProductionPage() {
                 />
                 <TextInput label="ملاحظة" {...form.getInputProps('note')} />
                 {needsWorkers && (
-                  <Text c="red" size="sm">
+                  <Text c="red.8" size="sm">
                     اختر خبازاً واحداً على الأقل
                   </Text>
                 )}
@@ -137,7 +137,7 @@ export function ProductionPage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Paper withBorder p="md" h="100%">
-            <Title order={4} mb="sm">
+            <Title order={3} size="h4" mb="sm">
               معاينة التكلفة
             </Title>
             {!inputValid ? (

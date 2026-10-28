@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type RefObject, useState } from 'react';
 import {
   Badge,
   Box,
@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { listProductCategories } from '../api';
 import type { Product } from '../api/types';
 import { useOpenShift } from '../components/PaymentFields';
+import { normalizeArabic } from '../lib/arabic';
 import { useMoney } from '../lib/useSettings';
 
 interface Props {
@@ -27,9 +28,11 @@ interface Props {
   cart: Map<number, number>;
   onAdd: (productId: number) => void;
   onOpenShift: () => void;
+  /** Focused by the F2 / «/» shortcuts owned by the POS screen. */
+  searchRef: RefObject<HTMLInputElement | null>;
 }
 
-export function ProductGrid({ products, cart, onAdd, onOpenShift }: Props) {
+export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: Props) {
   const { fmt } = useMoney();
   const { data: openShift, isLoading: shiftLoading } = useOpenShift();
   const { data: categories = [] } = useQuery({ queryKey: ['list_product_categories'], queryFn: listProductCategories });
@@ -37,31 +40,54 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift }: Props) {
   const [category, setCategory] = useState<string>('all');
 
   const sellable = products.filter((p) => !p.archived && p.priceMilli > 0);
-  const query = search.trim();
+  const sellableCategoryIds = new Set(sellable.map((p) => p.categoryId));
+  const shownCategories = categories.filter((c) => sellableCategoryIds.has(c.id));
+  // A category can lose its last sellable product while selected; fall back to «الكل».
+  const activeCategory = shownCategories.some((c) => String(c.id) === category) ? category : 'all';
+  const query = normalizeArabic(search);
   const visible = sellable.filter(
-    (p) => (category === 'all' || String(p.categoryId) === category) && (!query || p.name.includes(query)),
+    (p) =>
+      (activeCategory === 'all' || String(p.categoryId) === activeCategory) &&
+      (!query || normalizeArabic(p.name).includes(query)),
   );
 
   return (
     <Flex direction="column" h="100%" p="md" gap="sm">
       <TextInput
+        ref={searchRef}
         autoFocus
         size="md"
-        placeholder="بحث عن منتج"
+        placeholder="بحث عن منتج (Enter للإضافة)"
+        aria-label="بحث عن منتج"
         leftSection={<IconSearch size={18} />}
         value={search}
         onChange={(e) => setSearch(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            if (query && visible.length > 0) {
+              onAdd(visible[0].id);
+              setSearch('');
+            }
+          } else if (e.key === 'Escape' && search) {
+            e.preventDefault();
+            setSearch('');
+          }
+        }}
       />
-      <Tabs value={category} onChange={(v) => setCategory(v ?? 'all')}>
-        <Tabs.List>
-          <Tabs.Tab value="all">الكل</Tabs.Tab>
-          {categories.map((c) => (
-            <Tabs.Tab key={c.id} value={String(c.id)}>
-              {c.name}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
+      {shownCategories.length > 0 && (
+        <Tabs value={activeCategory} onChange={(v) => setCategory(v ?? 'all')} styles={{ tab: { minHeight: 44 } }}>
+          <Tabs.List>
+            <Tabs.Tab value="all">الكل</Tabs.Tab>
+            {shownCategories.map((c) => (
+              <Tabs.Tab key={c.id} value={String(c.id)}>
+                {c.name}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      )}
       <ScrollArea style={{ flex: 1 }}>
         {sellable.length === 0 ? (
           <Center h={300}>
@@ -77,10 +103,12 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift }: Props) {
           <SimpleGrid cols={{ base: 3, md: 4, lg: 5 }} spacing="sm">
             {visible.map((p) => {
               const inCart = cart.get(p.id) ?? 0;
+              const remaining = p.stockQty - inCart;
               return (
                 <UnstyledButton
                   key={p.id}
                   onClick={() => onAdd(p.id)}
+                  aria-label={`${p.name}، ${fmt(p.priceMilli)}، متبقي ${remaining}${inCart ? `، في السلة ${inCart}` : ''}`}
                   p="sm"
                   mih={110}
                   style={{
@@ -90,15 +118,28 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift }: Props) {
                   }}
                 >
                   <Stack gap={6} justify="space-between" h="100%">
-                    <Text fw={700} size="lg" lineClamp={2}>
-                      {p.name}
-                    </Text>
+                    <Group justify="space-between" align="flex-start" wrap="nowrap" gap={4}>
+                      <Text fw={700} size="lg" lineClamp={2}>
+                        {p.name}
+                      </Text>
+                      {inCart > 0 && (
+                        <Badge color="orange" variant="filled" size="lg" fz={14} style={{ flexShrink: 0 }} aria-label={`في السلة ${inCart}`}>
+                          ×{inCart}
+                        </Badge>
+                      )}
+                    </Group>
                     <Group justify="space-between" gap={4}>
-                      <Text fw={600} c="orange.8">
+                      <Text fw={600} c="orange.9">
                         {fmt(p.priceMilli)}
                       </Text>
-                      <Badge color={p.stockQty <= 0 ? 'red' : 'gray'} variant="light">
-                        {p.stockQty}
+                      <Badge
+                        color={remaining <= 0 ? 'red' : 'gray'}
+                        c={remaining <= 0 ? 'red.8' : 'gray.8'}
+                        variant="light"
+                        size="lg"
+                        fz={13}
+                      >
+                        متبقي {remaining}
                       </Badge>
                     </Group>
                   </Stack>

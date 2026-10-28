@@ -17,7 +17,7 @@ import { ShiftsPage } from './pages/ShiftsPage';
 import { StaffPage } from './pages/StaffPage';
 import { PosScreen, usePosSession } from './pos/PosScreen';
 
-const PAGES: Record<PageKey, () => React.JSX.Element> = {
+const PAGES: Record<PageKey, (props: { onNavigate: (page: PageKey) => void }) => React.JSX.Element> = {
   dashboard: DashboardPage,
   sales: SalesPage,
   products: ProductsPage,
@@ -55,7 +55,7 @@ export default function App() {
   const Page = PAGES[page];
   return (
     <AdminShell page={page} onNavigate={setPage} onPos={() => setMode('pos')}>
-      <Page />
+      <Page onNavigate={setPage} />
     </AdminShell>
   );
 }

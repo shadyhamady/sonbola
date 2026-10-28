@@ -41,7 +41,9 @@ export function ShiftBar({ onOpenShift, onCloseShift, onAdmin }: Props) {
     <Paper px="md" py="sm" radius={0} withBorder style={{ borderInline: 0, borderTop: 0 }}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="md" wrap="nowrap">
-          <Title order={3}>{settings?.bakeryName}</Title>
+          <Title order={1} size="h3">
+            {settings?.bakeryName}
+          </Title>
           {openShift ? (
             <Badge size="lg" color="green" variant="light">
               {`الوردية مفتوحة منذ ${formatTime(openShift.openedAt)} • المبيعات: ${fmt(summary?.salesTotalMilli ?? 0)}`}

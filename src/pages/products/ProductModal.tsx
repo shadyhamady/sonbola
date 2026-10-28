@@ -1,3 +1,4 @@
+import { type RefObject, useEffect, useRef } from 'react';
 import {
   ActionIcon,
   Button,
@@ -19,6 +20,7 @@ import {
 import { useForm } from '@mantine/form';
 import { randomId } from '@mantine/hooks';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { modals } from '@mantine/modals';
 import { useQuery } from '@tanstack/react-query';
 import { getRecipe, listIngredients, listProductCategories, periodReport, saveProduct } from '../../api';
 import { PAY_MODE_LABELS, UNIT_LABELS, toOptions } from '../../api/labels';
@@ -70,38 +72,55 @@ interface Props {
 }
 
 export function ProductModal({ opened, onClose, product, defaultCategoryId }: Props) {
+  // Set by the mounted form; read only when the user tries to dismiss the modal.
+  const dirtyRef = useRef(false);
+  const close = () => {
+    dirtyRef.current = false;
+    onClose();
+  };
+  const requestClose = () => {
+    if (!dirtyRef.current) return close();
+    modals.openConfirmModal({
+      title: 'تجاهل التغييرات؟',
+      children: <Text size="sm">لم تُحفظ التعديلات على هذا المنتج.</Text>,
+      labels: { confirm: 'تجاهل التغييرات', cancel: 'متابعة التعديل' },
+      confirmProps: { color: 'red' },
+      onConfirm: close,
+    });
+  };
+  const formProps = { defaultCategoryId, onDone: close, onCancel: requestClose, dirtyRef };
   return (
-    <Modal opened={opened} onClose={onClose} title={product ? `تعديل المنتج: ${product.name}` : 'منتج جديد'} size="xl">
-      {product ? (
-        <EditProductBody product={product} defaultCategoryId={defaultCategoryId} onDone={onClose} />
-      ) : (
-        <ProductForm product={null} recipe={[]} defaultCategoryId={defaultCategoryId} onDone={onClose} />
-      )}
+    <Modal opened={opened} onClose={requestClose} title={product ? `تعديل المنتج: ${product.name}` : 'منتج جديد'} size="xl">
+      {product ? <EditProductBody product={product} {...formProps} /> : <ProductForm product={null} recipe={[]} {...formProps} />}
     </Modal>
   );
 }
 
 /** Mounted only while the modal is open; `gcTime: 0` makes every opening load the current recipe. */
-function EditProductBody({ product, defaultCategoryId, onDone }: Omit<FormProps, 'recipe'> & { product: Product }) {
+function EditProductBody({ product, ...rest }: Omit<FormProps, 'recipe'> & { product: Product }) {
   const recipe = useQuery({
     queryKey: ['getRecipe', product.id],
     queryFn: () => getRecipe(product.id),
     gcTime: 0,
   });
   if (!recipe.data) {
-    return <Center p="xl">{recipe.error ? <Text c="red">{String(recipe.error)}</Text> : <Loader />}</Center>;
+    return <Center p="xl">{recipe.error ? <Text c="red.8">{String(recipe.error)}</Text> : <Loader />}</Center>;
   }
-  return <ProductForm product={product} recipe={recipe.data} defaultCategoryId={defaultCategoryId} onDone={onDone} />;
+  return <ProductForm product={product} recipe={recipe.data} {...rest} />;
 }
 
 interface FormProps {
   product: Product | null;
   recipe: RecipeLine[];
   defaultCategoryId: number | null;
+  /** Closes after a successful save. */
   onDone: () => void;
+  /** Closes on «إلغاء», confirming first when there are unsaved edits. */
+  onCancel: () => void;
+  dirtyRef: RefObject<boolean>;
 }
 
-function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) {
+function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dirtyRef }: FormProps) {
   const { fmt } = useMoney();
   const categories = useQuery({ queryKey: ['listProductCategories'], queryFn: listProductCategories });
   const ingredients = useQuery({ queryKey: ['listIngredients', true], queryFn: () => listIngredients(true) });
@@ -127,6 +146,9 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) 
       lowStockQty: (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 ? null : 'أدخل عدداً صحيحاً'),
       payRate: (v, values) => (values.payMode === 'none' || num(v) > 0 ? null : 'أدخل أجر الخباز'),
     },
+  });
+  useEffect(() => {
+    dirtyRef.current = form.isDirty();
   });
 
   const save = useMutate(saveProduct, 'تم حفظ المنتج', onDone);
@@ -208,7 +230,9 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) 
 
         {/* 2. Recipe */}
         <Divider />
-        <Title order={4}>الوصفة</Title>
+        <Title order={3} size="h4">
+          الوصفة
+        </Title>
         <Group gap="xs" align="center">
           <Text>الكميات أدناه تكفي لـ</Text>
           <NumberInput
@@ -274,7 +298,9 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) 
 
         {/* 3. Baker pay */}
         <Divider />
-        <Title order={4}>أجر الخبازين</Title>
+        <Title order={3} size="h4">
+          أجر الخبازين
+        </Title>
         <SegmentedControl data={toOptions(PAY_MODE_LABELS)} {...form.getInputProps('payMode')} />
         {v.payMode !== 'none' && (
           <SimpleGrid cols={2}>
@@ -295,7 +321,9 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) 
 
         {/* 4. Operating costs */}
         <Divider />
-        <Title order={4}>تكاليف التشغيل</Title>
+        <Title order={3} size="h4">
+          تكاليف التشغيل
+        </Title>
         <MoneyInput
           label="تكلفة تشغيل تقديرية لكل دفعة"
           description={`تكلفة الديزل الفعلية لكل قطعة هذا الشهر: ${fmt(report.data?.dieselCostPerItemMilli ?? 0)}`}
@@ -313,12 +341,12 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone }: FormProps) 
             <CostCell label="أجر الخباز" value={fmt(est.labor)} />
             <CostCell label="التشغيل" value={fmt(est.overhead)} />
             <CostCell label="التكلفة الكاملة" value={fmt(est.full)} bold />
-            <CostCell label="الهامش" value={fmt(margin)} color={margin < 0 ? 'red' : 'green'} bold />
+            <CostCell label="الهامش" value={fmt(margin)} color={margin < 0 ? 'red.8' : 'green.8'} bold />
           </SimpleGrid>
         </Paper>
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={onDone}>
+          <Button variant="default" onClick={onCancel}>
             إلغاء
           </Button>
           <Button type="submit" loading={save.isPending}>

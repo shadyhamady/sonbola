@@ -15,12 +15,12 @@ export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview
       </Text>
 
       {preview.ingredients.length === 0 ? (
-        <Alert color="yellow" variant="light">
+        <Alert color="orange" variant="light">
           هذا المنتج بدون وصفة، لن يتم خصم أي مكونات
         </Alert>
       ) : (
         <div>
-          <Title order={5} mb="xs">
+          <Title order={4} size="h5" mb="xs">
             المكونات
           </Title>
           <Table striped highlightOnHover>
@@ -38,7 +38,7 @@ export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview
                 return (
                   <Table.Tr
                     key={i.ingredientId}
-                    c={short ? 'red' : undefined}
+                    c={short ? 'red.8' : undefined}
                     bg={short ? 'var(--mantine-color-red-light)' : undefined}
                   >
                     <Table.Td>{i.name}</Table.Td>
@@ -60,7 +60,9 @@ export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview
       {preview.workers.length > 0 && (
         <div>
           <Group mb="xs" gap="xs">
-            <Title order={5}>الخبازون</Title>
+            <Title order={4} size="h5">
+              الخبازون
+            </Title>
             {preview.usedDefaultBaker && (
               <Badge variant="light" color="blue">
                 تم استخدام الخباز الافتراضي

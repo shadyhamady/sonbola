@@ -95,7 +95,7 @@ function PayrollTab({ staff }: { staff: Staff }) {
         {staff.owedMilli !== null ? (
           <Text>
             المستحق:{' '}
-            <Text span fw={700} c={staff.owedMilli > 0 ? 'green' : staff.owedMilli < 0 ? 'orange' : undefined}>
+            <Text span fw={700} c={staff.owedMilli > 0 ? 'green.8' : staff.owedMilli < 0 ? 'orange.9' : undefined}>
               {fmt(staff.owedMilli)}
             </Text>
           </Text>

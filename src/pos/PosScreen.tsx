@@ -1,7 +1,9 @@
-import { type Dispatch, type SetStateAction, useState } from 'react';
+import { type Dispatch, type SetStateAction, useRef, useState } from 'react';
 import { Box, Flex } from '@mantine/core';
+import { type HotkeyItem, useHotkeys } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { createSale, listProducts } from '../api';
+import { useOpenShift } from '../components/PaymentFields';
 import { useMutate } from '../lib/useMutate';
 import { useMoney } from '../lib/useSettings';
 import type { Sale } from '../api/types';
@@ -42,6 +44,8 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
     setCart(new Map());
   });
   const { data: products = [] } = useQuery({ queryKey: ['list_products', false], queryFn: () => listProducts(false) });
+  const { data: openShift } = useOpenShift();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const setQty = (productId: number, qty: number) => {
     setClearedCart(null);
@@ -55,6 +59,29 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
 
   const byId = new Map(products.map((p) => [p.id, p]));
   const totalMilli = [...cart].reduce((sum, [id, qty]) => sum + (byId.get(id)?.priceMilli ?? 0) * qty, 0);
+  const canCheckout = [...cart.keys()].some((id) => byId.has(id)) && !!openShift;
+  const checkout = () => {
+    if (canCheckout && !sale.isPending) sale.mutate({ items: [...cart].map(([productId, qty]) => ({ productId, qty })) });
+  };
+
+  // Shortcuts are inert while any modal (shift, confirm) is open.
+  const whenNoModal = (fn: () => void) => () => {
+    if (!document.querySelector('[aria-modal="true"]')) fn();
+  };
+  const focusSearch = whenNoModal(() => {
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  });
+  const checkoutKey = whenNoModal(checkout);
+  const globalKeys: HotkeyItem[] = [
+    ['F2', focusSearch],
+    ['F9', checkoutKey],
+    ['mod+Enter', checkoutKey],
+  ];
+  // Active inside inputs too, so F9 sells straight from the search box.
+  useHotkeys(globalKeys, []);
+  // «/» types normally inside inputs; physical key so it also works on an Arabic layout.
+  useHotkeys([['/', focusSearch, { usePhysicalKeys: true }]]);
 
   return (
     <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
@@ -66,6 +93,7 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
             cart={cart}
             onAdd={(productId) => setQty(productId, (cart.get(productId) ?? 0) + 1)}
             onOpenShift={() => setOpenShiftOpened(true)}
+            searchRef={searchRef}
           />
         </Box>
         <Box w={380} style={{ flexShrink: 0, borderInlineStart: '1px solid var(--mantine-color-gray-3)' }}>
@@ -83,7 +111,8 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
               if (clearedCart) setCart(clearedCart);
               setClearedCart(null);
             }}
-            onCheckout={() => sale.mutate({ items: [...cart].map(([productId, qty]) => ({ productId, qty })) })}
+            onCheckout={checkout}
+            canCheckout={canCheckout}
             checkingOut={sale.isPending}
             lastSale={lastSale}
             onLastSaleVoided={() => setLastSale(null)}

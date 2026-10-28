@@ -77,7 +77,7 @@ export function SuppliersTab() {
                 <Table.Td>{s.supplies}</Table.Td>
                 <Table.Td>{fmt(s.totalPurchasedMilli)}</Table.Td>
                 <Table.Td>{fmt(s.totalPaidMilli)}</Table.Td>
-                <Table.Td c={s.balanceMilli > 0 ? 'red' : undefined} fw={600}>
+                <Table.Td c={s.balanceMilli > 0 ? 'red.8' : undefined} fw={600}>
                   {fmt(s.balanceMilli)}
                 </Table.Td>
                 <Table.Td>{s.unpaidInvoices}</Table.Td>

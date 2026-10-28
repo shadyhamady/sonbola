@@ -15,12 +15,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { IconArchive, IconArchiveOff, IconPencil, IconPlus } from '@tabler/icons-react';
+import { IconArchive, IconArchiveOff, IconPencil, IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { createIngredient, listIngredients, setIngredientArchived, updateIngredient } from '../../api';
 import { STOCK_STATUS, UNIT_LABELS, toOptions } from '../../api/labels';
 import type { Ingredient, Unit } from '../../api/types';
 import { MoneyInput } from '../../components/MoneyInput';
+import { normalizeArabic } from '../../lib/arabic';
 import { fromMilli, formatQty, toMilli } from '../../lib/money';
 import { useMutate } from '../../lib/useMutate';
 import { useMoney } from '../../lib/useSettings';
@@ -29,35 +30,46 @@ export function IngredientsTab() {
   const { fmt } = useMoney();
   const [showArchived, setShowArchived] = useState(false);
   const [modal, setModal] = useState<{ ingredient: Ingredient | null } | null>(null);
+  const [search, setSearch] = useState('');
   const { data: ingredients = [] } = useQuery({
     queryKey: ['list_ingredients', showArchived],
     queryFn: () => listIngredients(showArchived),
   });
   const archive = useMutate((v: { id: number; archived: boolean }) => setIngredientArchived(v.id, v.archived));
 
-  const totalValue = ingredients.reduce((s, i) => s + i.stockValueMilli, 0);
+  const query = normalizeArabic(search);
+  const shown = query ? ingredients.filter((i) => normalizeArabic(i.name).includes(query)) : ingredients;
+  const totalValue = shown.reduce((s, i) => s + i.stockValueMilli, 0);
 
   return (
     <Stack>
       <Group justify="space-between">
-        <Switch
-          label="عرض المؤرشف"
-          checked={showArchived}
-          onChange={(e) => setShowArchived(e.currentTarget.checked)}
-        />
+        <Group>
+          <TextInput
+            placeholder="بحث بالاسم"
+            aria-label="بحث بالاسم"
+            leftSection={<IconSearch size={16} />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            w={240}
+          />
+          <Switch
+            label="عرض المؤرشف"
+            checked={showArchived}
+            onChange={(e) => setShowArchived(e.currentTarget.checked)}
+          />
+        </Group>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setModal({ ingredient: null })}>
           إضافة مكوّن
         </Button>
       </Group>
 
-      <Table.ScrollContainer minWidth={1000}>
+      <Table.ScrollContainer minWidth={800}>
         <Table striped highlightOnHover withTableBorder>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>الاسم</Table.Th>
               <Table.Th>الوحدة</Table.Th>
-              <Table.Th>التكلفة الافتراضية</Table.Th>
-              <Table.Th>الرصيد الافتتاحي</Table.Th>
               <Table.Th>حد إعادة الطلب</Table.Th>
               <Table.Th>المخزون</Table.Th>
               <Table.Th>متوسط التكلفة</Table.Th>
@@ -67,16 +79,16 @@ export function IngredientsTab() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {ingredients.length === 0 && (
+            {shown.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={10}>
+                <Table.Td colSpan={8}>
                   <Text c="dimmed" ta="center">
-                    لا توجد مكونات
+                    {ingredients.length === 0 ? 'لا توجد مكونات' : 'لا توجد نتائج مطابقة'}
                   </Text>
                 </Table.Td>
               </Table.Tr>
             )}
-            {ingredients.map((i) => (
+            {shown.map((i) => (
               <Table.Tr key={i.id} opacity={i.archived ? 0.6 : 1}>
                 <Table.Td>
                   <Group gap={6}>
@@ -89,10 +101,8 @@ export function IngredientsTab() {
                   </Group>
                 </Table.Td>
                 <Table.Td>{UNIT_LABELS[i.unit]}</Table.Td>
-                <Table.Td>{fmt(i.defaultCostMilli)}</Table.Td>
-                <Table.Td>{formatQty(i.openingQty)}</Table.Td>
                 <Table.Td>{formatQty(i.reorderQty)}</Table.Td>
-                <Table.Td c={i.stockQty <= 0 ? 'red' : undefined} fw={600}>
+                <Table.Td c={i.stockQty <= 0 ? 'red.8' : undefined} fw={600}>
                   {formatQty(i.stockQty)}
                 </Table.Td>
                 <Table.Td>{fmt(i.avgCostMilli)}</Table.Td>
@@ -126,7 +136,7 @@ export function IngredientsTab() {
           </Table.Tbody>
           <Table.Tfoot>
             <Table.Tr>
-              <Table.Th colSpan={7}>الإجمالي</Table.Th>
+              <Table.Th colSpan={5}>الإجمالي</Table.Th>
               <Table.Th>{fmt(totalValue)}</Table.Th>
               <Table.Th colSpan={2} />
             </Table.Tr>
