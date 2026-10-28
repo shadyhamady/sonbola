@@ -1,0 +1,15 @@
+/* Keep amounts like "1,234.50 ر.س" on one line; wide tables scroll horizontally instead. */
+.mantine-Table-td {
+  white-space: nowrap;
+}
+
+/* Mantine badges add letter-spacing, which breaks Arabic shaping and truncates labels. */
+.mantine-Badge-root {
+  letter-spacing: 0;
+  text-transform: none;
+  overflow: visible;
+}
+
+.mantine-Badge-label {
+  overflow: visible;
+}
