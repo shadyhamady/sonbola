@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/cairo':
+      '@fontsource/readex-pro':
         specifier: ^5.3.0
         version: 5.3.0
       '@mantine/charts':
@@ -115,8 +115,8 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@fontsource/cairo@5.3.0':
-    resolution: {integrity: sha512-MdY6+gee1DVz4eUvx1Dd8Y1f50WcRELRKwKBarYZA3zT8dMhkuTWbcoE1LzezAy97h/9rob87s02NI6L8MaDgA==}
+  '@fontsource/readex-pro@5.3.0':
+    resolution: {integrity: sha512-llvAZL81cEA7kgp9AnhgMRUVsZqb2i5njgLN0uQCNa0+jI8jjscZPOVyiqnUUGvzwmCFhsHw2OBQeF4MyygCXA==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1047,7 +1047,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@fontsource/cairo@5.3.0': {}
+  '@fontsource/readex-pro@5.3.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

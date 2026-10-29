@@ -10,7 +10,7 @@ import {
   setStaffRate,
   staffStatement,
 } from '../../api';
-import { METHOD_LABELS, PAY_BASIS_UNIT, PAY_MODE_LABELS, PAY_TYPE_LABELS } from '../../api/labels';
+import { PAY_BASIS_UNIT, PAY_MODE_LABELS, PAY_TYPE_LABELS } from '../../api/labels';
 import type { Staff, StaffRate } from '../../api/types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { RangePicker, useRange } from '../../components/RangePicker';
@@ -111,7 +111,7 @@ function PayrollTab({ staff }: { staff: Staff }) {
           <Table.Tr>
             <Table.Th>التاريخ</Table.Th>
             <Table.Th>الصافي</Table.Th>
-            <Table.Th>طريقة الدفع</Table.Th>
+            <Table.Th>الدرج</Table.Th>
             <Table.Th w={40} />
           </Table.Tr>
         </Table.Thead>
@@ -148,14 +148,13 @@ function PayrollTab({ staff }: { staff: Staff }) {
                 )}
               </Table.Td>
               <Table.Td>
-                <Group gap={4} wrap="nowrap">
-                  {METHOD_LABELS[p.method]}
-                  {p.paidFromDrawer && (
-                    <Badge size="xs" variant="light">
-                      من الدرج
-                    </Badge>
-                  )}
-                </Group>
+                {p.paidFromDrawer ? (
+                  <Badge size="xs" variant="light">
+                    من الدرج
+                  </Badge>
+                ) : (
+                  '—'
+                )}
               </Table.Td>
               <Table.Td>
                 {!p.locked && (

@@ -2,7 +2,6 @@ import { Button, Group, Modal, Select, Stack, TextInput } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { createExpense, updateExpense } from '../../api';
-import { METHOD_LABELS, toOptions } from '../../api/labels';
 import type { Category, Expense, Method } from '../../api/types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { PaymentFields } from '../../components/PaymentFields';
@@ -26,7 +25,6 @@ export function ExpenseModal({ expense, categories, onClose }: Props) {
         | null,
       description: expense?.description ?? '',
       amount: (expense ? fromMilli(expense.amountMilli) : '') as number | string,
-      method: (expense?.method ?? 'cash') as Method,
       paidFromDrawer: expense?.paidFromDrawer ?? false,
       note: expense?.note ?? '',
     },
@@ -48,7 +46,7 @@ export function ExpenseModal({ expense, categories, onClose }: Props) {
             categoryId: Number(values.categoryId),
             description: values.description.trim() || null,
             amountMilli: toMilli(Number(values.amount)),
-            method: values.method,
+            method: 'cash' as Method,
             note: values.note.trim() || null,
           };
           if (expense) {
@@ -72,21 +70,11 @@ export function ExpenseModal({ expense, categories, onClose }: Props) {
           />
           <TextInput label="الوصف" {...form.getInputProps('description')} />
           <MoneyInput label="المبلغ" data-autofocus {...form.getInputProps('amount')} />
-          {expense ? (
-            <Select
-              label="طريقة الدفع"
-              data={toOptions(METHOD_LABELS)}
-              allowDeselect={false}
-              disabled={expense.paidFromDrawer}
-              description={expense.paidFromDrawer ? 'مدفوع من درج النقد، يبقى نقداً' : undefined}
-              value={v.method}
-              onChange={(m) => m && form.setFieldValue('method', m as Method)}
-            />
-          ) : (
+          {!expense && (
             <PaymentFields
-              method={v.method}
+              method="cash"
               paidFromDrawer={v.paidFromDrawer}
-              onChange={(p) => form.setValues({ method: p.method, paidFromDrawer: p.paidFromDrawer })}
+              onChange={(p) => form.setFieldValue('paidFromDrawer', p.paidFromDrawer)}
             />
           )}
           <TextInput label="ملاحظة" {...form.getInputProps('note')} />

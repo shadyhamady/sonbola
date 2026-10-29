@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActionIcon,
+  Box,
   Button,
   Center,
   Divider,
@@ -65,21 +66,23 @@ export function Cart({
   const voidable = lastSale && openShift && lastSale.shiftId === openShift.id ? lastSale : null;
 
   return (
-    <Flex direction="column" h="100%" bg="var(--mantine-color-gray-0)">
-      <Group px="md" py="sm" gap="xs" justify="space-between">
+    <Flex direction="column" h="100%" bg="white">
+      <Group px="lg" pt="lg" pb="sm" gap="xs" justify="space-between">
         <Group gap="xs">
           <IconShoppingCart size={22} />
-          <Text fw={700} size="lg">
+          <Text fw={700} fz={20}>
             السلة
           </Text>
         </Group>
         {/* Kept away from the checkout button: a mis-tap there must not wipe the order. */}
-        <Button variant="subtle" color="gray" size="compact-sm" disabled={cart.size === 0} onClick={onClear}>
+        <Button variant="subtle" color="gray" c="dark" size="compact-md" radius="xl" disabled={cart.size === 0} onClick={onClear}>
           إفراغ السلة
         </Button>
       </Group>
-      <Divider />
-      <ScrollArea style={{ flex: 1 }} px="sm" py="xs">
+      <Box px="lg">
+        <Divider style={{ borderStyle: 'dashed' }} />
+      </Box>
+      <ScrollArea style={{ flex: 1 }} px="md" py="sm">
         {lines.length === 0 ? (
           <Center h={200}>
             <Stack align="center" gap="xs">
@@ -93,20 +96,36 @@ export function Cart({
           </Center>
         ) : (
           <Stack gap="xs">
-            {lines.map(({ product, qty, totalMilli: lineTotal }) => (
-              <Paper key={product.id} withBorder p="xs" radius="md">
-                <Group justify="space-between" wrap="nowrap" mb={6}>
-                  <div style={{ minWidth: 0 }}>
-                    <Text fw={700} truncate>
-                      {product.name}
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                      {fmt(product.priceMilli)}
-                    </Text>
-                  </div>
+            {lines.map(({ product, qty, totalMilli: lineTotal }, i) => (
+              <Paper
+                key={product.id}
+                p="xs"
+                radius="lg"
+                style={{ background: '#f8f8fb', border: '1px solid #ececf1' }}
+              >
+                <Group justify="space-between" wrap="nowrap" mb={6} gap="xs">
+                  <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <Center
+                      w={28}
+                      h={28}
+                      style={{ borderRadius: '50%', background: 'white', border: '1px solid #ececf1', flexShrink: 0 }}
+                    >
+                      <Text size="xs" fw={700} span>
+                        {i + 1}
+                      </Text>
+                    </Center>
+                    <div style={{ minWidth: 0 }}>
+                      <Text fw={700} truncate>
+                        {product.name}
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        {fmt(product.priceMilli)}
+                      </Text>
+                    </div>
+                  </Group>
                   <ActionIcon
                     variant="subtle"
-                    color="red"
+                    color="red.8"
                     size="lg"
                     onClick={() => onSetQty(product.id, 0)}
                     aria-label="حذف"
@@ -115,26 +134,30 @@ export function Cart({
                   </ActionIcon>
                 </Group>
                 <Group justify="space-between" wrap="nowrap">
-                  <Group gap="xs" wrap="nowrap">
-                    <ActionIcon size="xl" variant="default" onClick={() => onSetQty(product.id, qty - 1)} aria-label="إنقاص">
+                  <Group gap={4} wrap="nowrap">
+                    <ActionIcon size={44} variant="white" bd="1px solid #ececf1" onClick={() => onSetQty(product.id, qty - 1)} aria-label="إنقاص">
                       <IconMinus size={20} />
                     </ActionIcon>
                     <QtyField name={product.name} qty={qty} onCommit={(n) => onSetQty(product.id, n)} />
-                    <ActionIcon size="xl" variant="default" onClick={() => onSetQty(product.id, qty + 1)} aria-label="زيادة">
+                    <ActionIcon size={44} variant="white" bd="1px solid #ececf1" onClick={() => onSetQty(product.id, qty + 1)} aria-label="زيادة">
                       <IconPlus size={20} />
                     </ActionIcon>
                   </Group>
-                  <Text fw={700}>{fmt(lineTotal)}</Text>
+                  <Text fw={700} fz="lg">
+                    {fmt(lineTotal)}
+                  </Text>
                 </Group>
               </Paper>
             ))}
           </Stack>
         )}
       </ScrollArea>
-      <Divider />
-      <Stack p="md" gap="sm">
+      <Box px="lg">
+        <Divider style={{ borderStyle: 'dashed' }} />
+      </Box>
+      <Stack p="lg" gap="sm">
         {voidable && (
-          <Paper withBorder radius="md" px="sm" py={6}>
+          <Paper radius="lg" px="sm" py={6} style={{ background: '#f8f8fb', border: '1px solid #ececf1' }}>
             <Group justify="space-between" wrap="nowrap" gap="xs">
               <Group gap={6} wrap="nowrap">
                 <IconReceipt size={18} />
@@ -162,20 +185,20 @@ export function Cart({
             </Group>
           </Paper>
         )}
-        <Group justify="space-between">
-          <Text fw={600} size="lg">
+        <Group justify="space-between" align="baseline">
+          <Text fw={600} size="lg" c="dimmed">
             الإجمالي
           </Text>
-          <Text fw={700} fz={32}>
+          <Text fw={700} fz={34} lh={1.1}>
             {fmt(totalMilli)}
           </Text>
         </Group>
         <Stack gap={4}>
-          <Button size="xl" fullWidth disabled={!canCheckout} loading={checkingOut} onClick={onCheckout}>
+          <Button size="xl" radius="xl" color="dark" fullWidth disabled={!canCheckout} loading={checkingOut} onClick={onCheckout}>
             إتمام البيع (نقداً)
           </Button>
           <Text size="xs" c="dimmed" ta="center">
-            F9 لإتمام البيع • F2 للبحث
+            F9 أو Ctrl+Enter لإتمام البيع • F2 للبحث
           </Text>
         </Stack>
       </Stack>

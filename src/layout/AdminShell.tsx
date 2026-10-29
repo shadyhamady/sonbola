@@ -77,48 +77,64 @@ export function AdminShell({ page, onNavigate, onPos, children }: Props) {
   const { data: settings } = useSettings();
   const { data: openShift } = useOpenShift();
   return (
-    <AppShell header={{ height: 60 }} navbar={{ width: 240, breakpoint: 0 }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group gap="sm" wrap="nowrap">
+    <AppShell header={{ height: 64 }} navbar={{ width: 248, breakpoint: 0 }} padding="lg">
+      <AppShell.Header style={{ background: 'var(--mantine-color-body)', borderColor: '#ececf1' }}>
+        <Group h="100%" px="lg" justify="space-between">
+          <Group gap="md" wrap="nowrap">
             {/* h1: the app name; page titles are h2 and in-page sections h3. */}
-            <Title order={1} size="h3">
+            <Title order={1} size="h3" c="var(--ink)">
               {settings?.bakeryName}
             </Title>
             {openShift ? (
-              <Badge color="green" variant="light">
+              <Badge color="green" variant="light" size="lg">
                 {`وردية مفتوحة منذ ${formatTime(openShift.openedAt)}`}
               </Badge>
             ) : (
-              <Badge color="gray" variant="light">
+              <Badge color="gray" variant="light" size="lg">
                 لا توجد وردية مفتوحة
               </Badge>
             )}
           </Group>
-          <Button leftSection={<IconShoppingCart size={18} />} onClick={onPos}>
+          <Button
+            color="dark"
+            radius="xl"
+            size="md"
+            leftSection={<IconShoppingCart size={18} />}
+            onClick={onPos}
+          >
             نقطة البيع
           </Button>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="xs">
+      <AppShell.Navbar p="md" style={{ background: 'var(--mantine-color-body)', borderColor: '#ececf1' }}>
         <ScrollArea>
           {NAV.map(({ title, items }) => (
             <div key={title ?? 'home'}>
               {title && (
-                <Text size="xs" fw={700} c="dimmed" px="sm" pt="md" pb={4}>
+                <Text size="xs" fw={600} c="dimmed" px="sm" pt="lg" pb={6}>
                   {title}
                 </Text>
               )}
-              {items.map(({ key, label, icon: Icon }) => (
-                <NavLink
-                  key={key}
-                  label={label}
-                  leftSection={<Icon size={18} />}
-                  active={page === key}
-                  onClick={() => onNavigate(key)}
-                  style={{ borderRadius: 'var(--mantine-radius-md)' }}
-                />
-              ))}
+              {items.map(({ key, label, icon: Icon }) => {
+                const active = page === key;
+                return (
+                  <NavLink
+                    key={key}
+                    label={label}
+                    leftSection={<Icon size={18} stroke={1.6} />}
+                    active={active}
+                    onClick={() => onNavigate(key)}
+                    mih={44}
+                    mb={2}
+                    fw={active ? 700 : 500}
+                    style={{
+                      borderRadius: 'var(--mantine-radius-xl)',
+                      color: 'var(--ink)',
+                      background: active ? 'var(--pastel-lav)' : undefined,
+                    }}
+                  />
+                );
+              })}
             </div>
           ))}
         </ScrollArea>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ActionIcon, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Center, Group, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { BarChart } from '@mantine/charts';
 import { useHover } from '@mantine/hooks';
 import { IconChevronLeft, IconInfoCircle } from '@tabler/icons-react';
@@ -36,6 +36,8 @@ export function StatCard({
   color,
   children,
   onClick,
+  tint,
+  icon,
 }: {
   label: string;
   value: ReactNode;
@@ -43,25 +45,43 @@ export function StatCard({
   children?: ReactNode;
   /** Makes the whole card a button (e.g. to open the page behind the figure). */
   onClick?: () => void;
+  /** Pastel fill (any CSS colour, e.g. `var(--pastel-lav)`); default is white with a thin border. */
+  tint?: string;
+  /** Optional icon shown in a white circle at the top. */
+  icon?: ReactNode;
 }) {
   const { hovered, ref } = useHover<HTMLButtonElement>();
   const body = (
-    <Paper withBorder p="md" radius="md" h="100%" bg={onClick && hovered ? 'gray.0' : undefined}>
-      <Group justify="space-between" wrap="nowrap" gap="xs">
-        <Text size="sm" c="dimmed">
-          {label}
-        </Text>
-        {onClick && <IconChevronLeft size={16} color="var(--mantine-color-dimmed)" aria-hidden />}
+    <Paper
+      withBorder={!tint}
+      p="lg"
+      radius="lg"
+      h="100%"
+      bg={tint ?? (onClick && hovered ? 'var(--mantine-color-gray-0)' : 'white')}
+      style={{ borderColor: '#ececf1', color: 'var(--ink)' }}
+    >
+      <Group justify="space-between" wrap="nowrap" gap="xs" mb="sm">
+        <Group gap="xs" wrap="nowrap">
+          {icon && (
+            <Center w={36} h={36} bg="white" style={{ borderRadius: '50%', border: '1px solid #ececf1' }} aria-hidden>
+              {icon}
+            </Center>
+          )}
+          <Text size="sm" fw={500} c={tint ? 'var(--ink)' : 'dimmed'}>
+            {label}
+          </Text>
+        </Group>
+        {onClick && <IconChevronLeft size={16} color={tint ? 'var(--ink)' : 'var(--mantine-color-dimmed)'} aria-hidden />}
       </Group>
-      <Text fw={700} size="xl" c={color}>
+      <Text fw={700} fz={30} lh={1.2} c={color}>
         {value}
       </Text>
-      {children}
+      {children && <div style={{ color: tint ? 'var(--ink)' : undefined }}>{children}</div>}
     </Paper>
   );
   if (!onClick) return body;
   return (
-    <UnstyledButton ref={ref} onClick={onClick} w="100%" h="100%" style={{ borderRadius: 'var(--mantine-radius-md)' }}>
+    <UnstyledButton ref={ref} onClick={onClick} w="100%" h="100%" style={{ borderRadius: 'var(--mantine-radius-lg)' }}>
       {body}
     </UnstyledButton>
   );
@@ -156,7 +176,7 @@ function dayRows(range: Range, days: DaySales[]) {
   });
 }
 
-/** Stacked POS + manual sales per day, oldest day on the right. */
+/** Sales per day (POS + manual combined), oldest day on the right. */
 export function SalesByDayChart({
   range,
   days,
@@ -168,7 +188,7 @@ export function SalesByDayChart({
   valueFormatter: (major: number) => string;
   h?: number;
 }) {
-  const data = dayRows(range, days);
+  const data = dayRows(range, days).map((d) => ({ day: d.day, sales: d.pos + d.manual }));
   if (data.length === 0) {
     return (
       <Text c="dimmed" ta="center" py="xl">
@@ -181,15 +201,11 @@ export function SalesByDayChart({
       h={h}
       data={data}
       dataKey="day"
-      type="stacked"
-      withLegend
       valueFormatter={valueFormatter}
       xAxisProps={RTL_X_AXIS}
       yAxisProps={rtlYAxis(90)}
-      series={[
-        { name: 'pos', label: 'نقطة البيع', color: 'orange.6' },
-        { name: 'manual', label: 'يدوي', color: 'blue.6' },
-      ]}
+      gridProps={{ strokeDasharray: '4 4' }}
+      series={[{ name: 'sales', label: 'المبيعات', color: 'mint.3' }]}
     />
   );
 }

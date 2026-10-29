@@ -58,14 +58,6 @@ function PeriodReportTab() {
   const [range, setRange] = useRange();
   const { data: r } = useQuery({ queryKey: ['period_report', range], queryFn: () => periodReport(range) });
 
-  const methods = r
-    ? [
-        { label: 'نقداً', milli: r.salesByMethod.cash },
-        { label: 'بطاقة', milli: r.salesByMethod.card },
-        { label: 'أونلاين / تطبيقات التوصيل', milli: r.salesByMethod.online },
-        { label: 'أخرى', milli: r.salesByMethod.other },
-      ]
-    : [];
   const expensesTotal = r?.expensesByCategory.reduce((s, c) => s + c.totalMilli, 0) ?? 0;
   const profit = r?.productProfit ?? [];
   const sum = (key: 'qty' | 'revenueMilli' | 'cogsMilli' | 'grossMilli' | 'overheadMilli' | 'afterOverheadMilli') =>
@@ -115,34 +107,7 @@ function PeriodReportTab() {
           </Grid>
 
           <Grid>
-            <Grid.Col span={{ base: 12, md: 4 }}>
-              <Paper withBorder p="md" radius="md" h="100%">
-                <Title order={3} size="h4" mb="sm">
-                  المبيعات حسب طريقة الدفع
-                </Title>
-                <Table striped highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>الطريقة</Table.Th>
-                      <Table.Th>المبلغ</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {methods.map((m) => (
-                      <Table.Tr key={m.label}>
-                        <Table.Td>{m.label}</Table.Td>
-                        <Table.Td>{fmt(m.milli)}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                    <Table.Tr fw={700}>
-                      <Table.Td>الإجمالي</Table.Td>
-                      <Table.Td>{fmt(r.salesMilli)}</Table.Td>
-                    </Table.Tr>
-                  </Table.Tbody>
-                </Table>
-              </Paper>
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 8 }}>
+            <Grid.Col span={12}>
               <Paper withBorder p="md" radius="md" h="100%">
                 <Title order={3} size="h4" mb="sm">
                   المبيعات اليومية

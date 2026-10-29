@@ -38,38 +38,38 @@ export function ShiftBar({ onOpenShift, onCloseShift, onAdmin }: Props) {
   };
 
   return (
-    <Paper px="md" py="sm" radius={0} withBorder style={{ borderInline: 0, borderTop: 0 }}>
+    <Paper px="lg" py="sm" radius={0} withBorder style={{ borderInline: 0, borderTop: 0, borderColor: '#ececf1', background: 'white' }}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="md" wrap="nowrap">
           <Title order={1} size="h3">
             {settings?.bakeryName}
           </Title>
           {openShift ? (
-            <Badge size="lg" color="green" variant="light">
+            <Badge size="xl" radius="xl" color="mint.3" c="dark" variant="filled" h={36} fz={14} tt="none">
               {`الوردية مفتوحة منذ ${formatTime(openShift.openedAt)} • المبيعات: ${fmt(summary?.salesTotalMilli ?? 0)}`}
             </Badge>
           ) : (
-            <Badge size="lg" color="gray" variant="light">
+            <Badge size="xl" radius="xl" color="gray.2" c="dark" variant="filled" h={36} fz={14} tt="none">
               لا توجد وردية مفتوحة
             </Badge>
           )}
         </Group>
         <Group gap="xs" wrap="nowrap">
           {openShift ? (
-            <Button color="red" variant="light" onClick={onCloseShift}>
+            <Button color="red" variant="light" radius="xl" size="md" h={44} onClick={onCloseShift}>
               إغلاق الوردية
             </Button>
           ) : (
-            <Button color="green" onClick={onOpenShift}>
+            <Button color="dark" radius="xl" size="md" h={44} onClick={onOpenShift}>
               فتح وردية
             </Button>
           )}
           <Tooltip label={fullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}>
-            <ActionIcon variant="default" size="lg" onClick={toggleFullscreen} aria-label="ملء الشاشة">
+            <ActionIcon variant="default" radius="xl" size={44} onClick={toggleFullscreen} aria-label="ملء الشاشة">
               {fullscreen ? <IconMinimize size={18} /> : <IconMaximize size={18} />}
             </ActionIcon>
           </Tooltip>
-          <Button variant="default" leftSection={<IconLayoutDashboard size={18} />} onClick={onAdmin}>
+          <Button variant="default" radius="xl" size="md" h={44} leftSection={<IconLayoutDashboard size={18} />} onClick={onAdmin}>
             الإدارة
           </Button>
         </Group>

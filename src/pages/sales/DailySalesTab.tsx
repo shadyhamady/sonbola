@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Button, Group, Modal, SimpleGrid, Stack, Table, Text, Textarea } from '@mantine/core';
+import { ActionIcon, Alert, Button, Group, Modal, Stack, Table, Text, Textarea } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { modals } from '@mantine/modals';
@@ -13,13 +13,6 @@ import { formatDate, toLocalDateString } from '../../lib/dates';
 import { fromMilli, toMilli } from '../../lib/money';
 import { useMutate } from '../../lib/useMutate';
 import { useMoney } from '../../lib/useSettings';
-
-const AMOUNT_FIELDS = [
-  { key: 'cash', label: 'نقداً' },
-  { key: 'card', label: 'بطاقة' },
-  { key: 'online', label: 'أونلاين / تطبيقات التوصيل' },
-  { key: 'other', label: 'أخرى' },
-] as const;
 
 export function DailySalesTab() {
   const { fmt } = useMoney();
@@ -42,15 +35,12 @@ export function DailySalesTab() {
           إدخال مبيعات يوم
         </Button>
       </Group>
-      <Table.ScrollContainer minWidth={700}>
+      <Table.ScrollContainer minWidth={500}>
         <Table striped highlightOnHover withTableBorder>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>التاريخ</Table.Th>
-              {AMOUNT_FIELDS.map((f) => (
-                <Table.Th key={f.key}>{f.label}</Table.Th>
-              ))}
-              <Table.Th>الإجمالي</Table.Th>
+              <Table.Th>المبيعات</Table.Th>
               <Table.Th>ملاحظة</Table.Th>
               <Table.Th />
             </Table.Tr>
@@ -58,7 +48,7 @@ export function DailySalesTab() {
           <Table.Tbody>
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={8}>
+                <Table.Td colSpan={4}>
                   <Text c="dimmed" ta="center">
                     لا توجد مبيعات يدوية في هذه الفترة
                   </Text>
@@ -68,10 +58,6 @@ export function DailySalesTab() {
             {rows.map((r) => (
               <Table.Tr key={r.id}>
                 <Table.Td>{formatDate(r.saleDate)}</Table.Td>
-                <Table.Td>{fmt(r.cashMilli)}</Table.Td>
-                <Table.Td>{fmt(r.cardMilli)}</Table.Td>
-                <Table.Td>{fmt(r.onlineMilli)}</Table.Td>
-                <Table.Td>{fmt(r.otherMilli)}</Table.Td>
                 <Table.Td fw={700}>{fmt(r.totalMilli)}</Table.Td>
                 <Table.Td>{r.note}</Table.Td>
                 <Table.Td>
@@ -104,10 +90,6 @@ export function DailySalesTab() {
             <Table.Tfoot>
               <Table.Tr fw={700}>
                 <Table.Td>الإجمالي</Table.Td>
-                <Table.Td>{fmt(sum((r) => r.cashMilli))}</Table.Td>
-                <Table.Td>{fmt(sum((r) => r.cardMilli))}</Table.Td>
-                <Table.Td>{fmt(sum((r) => r.onlineMilli))}</Table.Td>
-                <Table.Td>{fmt(sum((r) => r.otherMilli))}</Table.Td>
                 <Table.Td>{fmt(sum((r) => r.totalMilli))}</Table.Td>
                 <Table.Td colSpan={2} />
               </Table.Tr>
@@ -128,23 +110,18 @@ export function DailySalesTab() {
 }
 
 function DailySaleForm({ row, onDone }: { row: DailySale | null; onDone: () => void }) {
-  const { fmt } = useMoney();
   const form = useForm({
     initialValues: {
       saleDate: row?.saleDate ?? toLocalDateString(new Date()),
-      cash: row ? fromMilli(row.cashMilli) : ('' as number | string),
-      card: row ? fromMilli(row.cardMilli) : ('' as number | string),
-      online: row ? fromMilli(row.onlineMilli) : ('' as number | string),
-      other: row ? fromMilli(row.otherMilli) : ('' as number | string),
+      amount: row ? fromMilli(row.totalMilli) : ('' as number | string),
       note: row?.note ?? '',
     },
-    validate: { saleDate: (v) => (v ? null : 'اختر التاريخ') },
+    validate: {
+      saleDate: (v) => (v ? null : 'اختر التاريخ'),
+      amount: (v) => (Number(v) > 0 ? null : 'أدخل المبلغ'),
+    },
   });
   const save = useMutate<DailySaleInput, unknown>(row ? updateDailySale : createDailySale, 'تم الحفظ', onDone);
-
-  const milli = (v: number | string) => toMilli(Number(v) || 0);
-  const v = form.values;
-  const totalMilli = milli(v.cash) + milli(v.card) + milli(v.online) + milli(v.other);
 
   return (
     <form
@@ -152,27 +129,17 @@ function DailySaleForm({ row, onDone }: { row: DailySale | null; onDone: () => v
         save.mutate({
           id: row?.id ?? null,
           saleDate: values.saleDate,
-          cashMilli: milli(values.cash),
-          cardMilli: milli(values.card),
-          onlineMilli: milli(values.online),
-          otherMilli: milli(values.other),
+          cashMilli: toMilli(Number(values.amount)),
+          cardMilli: 0,
+          onlineMilli: 0,
+          otherMilli: 0,
           note: values.note.trim() || null,
         }),
       )}
     >
       <Stack>
         <DatePickerInput label="التاريخ" valueFormat="YYYY/MM/DD" {...form.getInputProps('saleDate')} />
-        <SimpleGrid cols={2}>
-          {AMOUNT_FIELDS.map((f) => (
-            <MoneyInput key={f.key} label={f.label} {...form.getInputProps(f.key)} />
-          ))}
-        </SimpleGrid>
-        <Group justify="space-between">
-          <Text fw={600}>الإجمالي</Text>
-          <Text fw={700} size="xl">
-            {fmt(totalMilli)}
-          </Text>
-        </Group>
+        <MoneyInput label="مبيعات اليوم" data-autofocus {...form.getInputProps('amount')} />
         <Textarea label="ملاحظة" autosize minRows={2} {...form.getInputProps('note')} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onDone}>

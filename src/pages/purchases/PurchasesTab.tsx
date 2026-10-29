@@ -18,7 +18,7 @@ import { modals } from '@mantine/modals';
 import { IconCash, IconChevronDown, IconChevronLeft, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { deletePurchase, deletePurchasePayment, listPurchases, listSuppliers } from '../../api';
-import { METHOD_LABELS, PURCHASE_STATUS, UNIT_LABELS } from '../../api/labels';
+import { PURCHASE_STATUS, UNIT_LABELS } from '../../api/labels';
 import type { Purchase } from '../../api/types';
 import { RangePicker, useRange } from '../../components/RangePicker';
 import { formatDateTime } from '../../lib/dates';
@@ -260,7 +260,7 @@ function PurchaseDetails({
               <Table.Tr>
                 <Table.Th>التاريخ</Table.Th>
                 <Table.Th>المبلغ</Table.Th>
-                <Table.Th>الطريقة</Table.Th>
+                <Table.Th>الدرج</Table.Th>
                 <Table.Th>ملاحظة</Table.Th>
                 <Table.Th />
               </Table.Tr>
@@ -271,14 +271,13 @@ function PurchaseDetails({
                   <Table.Td>{formatDateTime(pay.paidAt)}</Table.Td>
                   <Table.Td>{fmt(pay.amountMilli)}</Table.Td>
                   <Table.Td>
-                    <Group gap={6}>
-                      {METHOD_LABELS[pay.method]}
-                      {pay.paidFromDrawer && (
-                        <Badge size="xs" variant="light">
-                          من الدرج
-                        </Badge>
-                      )}
-                    </Group>
+                    {pay.paidFromDrawer ? (
+                      <Badge size="xs" variant="light">
+                        من الدرج
+                      </Badge>
+                    ) : (
+                      '—'
+                    )}
                   </Table.Td>
                   <Table.Td>{pay.note}</Table.Td>
                   <Table.Td>

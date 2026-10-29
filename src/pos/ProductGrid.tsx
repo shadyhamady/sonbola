@@ -1,38 +1,25 @@
-import { type RefObject, useState } from 'react';
-import {
-  Badge,
-  Box,
-  Button,
-  Card,
-  Center,
-  Flex,
-  Group,
-  ScrollArea,
-  SimpleGrid,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-  UnstyledButton,
-} from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
+import { type ReactNode, type RefObject, useState } from 'react';
+import { ActionIcon, Badge, Box, Button, Card, Center, Flex, Group, ScrollArea, SimpleGrid, Stack, Text, TextInput, UnstyledButton } from '@mantine/core';
+import { IconBread, IconLayoutGrid, IconMinus, IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listProductCategories } from '../api';
 import type { Product } from '../api/types';
 import { useOpenShift } from '../components/PaymentFields';
 import { normalizeArabic } from '../lib/arabic';
+import { pastelFor } from '../lib/pastel';
 import { useMoney } from '../lib/useSettings';
 
 interface Props {
   products: Product[];
   cart: Map<number, number>;
   onAdd: (productId: number) => void;
+  onSetQty: (productId: number, qty: number) => void;
   onOpenShift: () => void;
   /** Focused by the F2 / «/» shortcuts owned by the POS screen. */
   searchRef: RefObject<HTMLInputElement | null>;
 }
 
-export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: Props) {
+export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, searchRef }: Props) {
   const { fmt } = useMoney();
   const { data: openShift, isLoading: shiftLoading } = useOpenShift();
   const { data: categories = [] } = useQuery({ queryKey: ['list_product_categories'], queryFn: listProductCategories });
@@ -40,8 +27,11 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
   const [category, setCategory] = useState<string>('all');
 
   const sellable = products.filter((p) => !p.archived && p.priceMilli > 0);
-  const sellableCategoryIds = new Set(sellable.map((p) => p.categoryId));
-  const shownCategories = categories.filter((c) => sellableCategoryIds.has(c.id));
+  const countByCategory = new Map<number, number>();
+  for (const p of sellable) countByCategory.set(p.categoryId, (countByCategory.get(p.categoryId) ?? 0) + 1);
+  // Pastel follows the category's position in the full category order, so it is stable while others are hidden.
+  const pastelByCategory = new Map(categories.map((c, i) => [c.id, pastelFor(i)]));
+  const shownCategories = categories.filter((c) => countByCategory.has(c.id));
   // A category can lose its last sellable product while selected; fall back to «الكل».
   const activeCategory = shownCategories.some((c) => String(c.id) === category) ? category : 'all';
   const query = normalizeArabic(search);
@@ -51,12 +41,63 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
       (!query || normalizeArabic(p.name).includes(query)),
   );
 
+  const tile = (key: string, label: string, count: number, bg: string, icon: ReactNode) => {
+    const selected = activeCategory === key;
+    return (
+      <UnstyledButton
+        key={key}
+        onClick={() => setCategory(key)}
+        aria-pressed={selected}
+        aria-label={`${label}، عدد الأصناف ${count}`}
+        p="sm"
+        miw={132}
+        h={92}
+        style={{
+          flexShrink: 0,
+          background: bg,
+          color: 'var(--ink)',
+          borderRadius: 'var(--mantine-radius-lg)',
+          border: `2px solid ${selected ? 'var(--ink)' : 'transparent'}`,
+        }}
+      >
+        <Stack gap={0} justify="space-between" h="100%">
+          <Center
+            w={30}
+            h={30}
+            style={{ borderRadius: '50%', background: 'rgba(255,255,255,0.7)', flexShrink: 0 }}
+          >
+            {icon}
+          </Center>
+          <div>
+            <Text fw={700} lh={1.2} lineClamp={1}>
+              {label}
+            </Text>
+            <Text size="xs" lh={1.3} style={{ color: '#4a4a55' }}>
+              عدد الأصناف {count}
+            </Text>
+          </div>
+        </Stack>
+      </UnstyledButton>
+    );
+  };
+
   return (
-    <Flex direction="column" h="100%" p="md" gap="sm">
+    <Flex direction="column" h="100%" p="md" gap="sm" style={{ minHeight: 0 }}>
+      {shownCategories.length > 0 && (
+        <ScrollArea type="never" style={{ flexShrink: 0 }}>
+          <Group gap="sm" wrap="nowrap" pb={2}>
+            {tile('all', 'الكل', sellable.length, 'white', <IconLayoutGrid size={18} />)}
+            {shownCategories.map((c) =>
+              tile(String(c.id), c.name, countByCategory.get(c.id) ?? 0, pastelByCategory.get(c.id)!.bg, <IconBread size={18} />),
+            )}
+          </Group>
+        </ScrollArea>
+      )}
       <TextInput
         ref={searchRef}
         autoFocus
         size="md"
+        radius="xl"
         placeholder="بحث عن منتج (Enter للإضافة)"
         aria-label="بحث عن منتج"
         leftSection={<IconSearch size={18} />}
@@ -76,19 +117,7 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
           }
         }}
       />
-      {shownCategories.length > 0 && (
-        <Tabs value={activeCategory} onChange={(v) => setCategory(v ?? 'all')} styles={{ tab: { minHeight: 44 } }}>
-          <Tabs.List>
-            <Tabs.Tab value="all">الكل</Tabs.Tab>
-            {shownCategories.map((c) => (
-              <Tabs.Tab key={c.id} value={String(c.id)}>
-                {c.name}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs>
-      )}
-      <ScrollArea style={{ flex: 1 }}>
+      <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {sellable.length === 0 ? (
           <Center h={300}>
             <Text c="dimmed" size="lg">
@@ -100,50 +129,83 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
             <Text c="dimmed">لا توجد منتجات مطابقة</Text>
           </Center>
         ) : (
-          <SimpleGrid cols={{ base: 3, md: 4, lg: 5 }} spacing="sm">
+          <SimpleGrid cols={{ base: 2, md: 3, lg: 4 }} spacing="sm" pb="xs">
             {visible.map((p) => {
               const inCart = cart.get(p.id) ?? 0;
               const remaining = p.stockQty - inCart;
+              const pastel = pastelByCategory.get(p.categoryId) ?? pastelFor(0);
+              const active = inCart > 0;
               return (
-                <UnstyledButton
+                <Flex
                   key={p.id}
-                  onClick={() => onAdd(p.id)}
-                  aria-label={`${p.name}، ${fmt(p.priceMilli)}، متبقي ${remaining}${inCart ? `، في السلة ${inCart}` : ''}`}
+                  direction="column"
+                  mih={132}
                   p="sm"
-                  mih={110}
+                  gap={6}
                   style={{
-                    border: `1px solid ${inCart ? 'var(--mantine-color-orange-5)' : 'var(--mantine-color-gray-3)'}`,
-                    borderRadius: 'var(--mantine-radius-md)',
-                    background: inCart ? 'var(--mantine-color-orange-0)' : 'var(--mantine-color-body)',
+                    background: active ? pastel.bg : `color-mix(in srgb, ${pastel.bg} 35%, white)`,
+                    border: '1px solid #ececf1',
+                    borderRadius: 'var(--mantine-radius-lg)',
+                    color: 'var(--ink)',
                   }}
                 >
-                  <Stack gap={6} justify="space-between" h="100%">
+                  <UnstyledButton
+                    onClick={() => onAdd(p.id)}
+                    aria-label={`${p.name}، ${fmt(p.priceMilli)}، متبقي ${remaining}${inCart ? `، في السلة ${inCart}` : ''}`}
+                    style={{ flex: 1, textAlign: 'start' }}
+                  >
                     <Group justify="space-between" align="flex-start" wrap="nowrap" gap={4}>
-                      <Text fw={700} size="lg" lineClamp={2}>
+                      <Text fw={700} size="lg" lh={1.25} lineClamp={2}>
                         {p.name}
                       </Text>
-                      {inCart > 0 && (
-                        <Badge color="orange" variant="filled" size="lg" fz={14} style={{ flexShrink: 0 }} aria-label={`في السلة ${inCart}`}>
+                      {active && (
+                        <Badge color="dark" variant="filled" size="lg" fz={14} style={{ flexShrink: 0 }} aria-label={`في السلة ${inCart}`}>
                           ×{inCart}
                         </Badge>
                       )}
                     </Group>
-                    <Group justify="space-between" gap={4}>
-                      <Text fw={600} c="orange.9">
+                    <Group justify="space-between" gap={4} mt={4}>
+                      <Text fw={500} style={{ color: '#4a4a55' }}>
                         {fmt(p.priceMilli)}
                       </Text>
                       <Badge
                         color={remaining <= 0 ? 'red' : 'gray'}
                         c={remaining <= 0 ? 'red.8' : 'gray.8'}
-                        variant="light"
-                        size="lg"
-                        fz={13}
+                        variant={remaining <= 0 ? 'light' : 'white'}
+                        size="md"
+                        fz={12}
                       >
                         متبقي {remaining}
                       </Badge>
                     </Group>
-                  </Stack>
-                </UnstyledButton>
+                  </UnstyledButton>
+                  <Group gap={6} wrap="nowrap" justify="space-between">
+                    <ActionIcon
+                      size={44}
+                      variant="white"
+                      c="dark"
+                      bd="1px solid #ececf1"
+                      disabled={inCart <= 0}
+                      onClick={() => onSetQty(p.id, inCart - 1)}
+                      aria-label={`إنقاص ${p.name}`}
+                    >
+                      <IconMinus size={20} />
+                    </ActionIcon>
+                    <Text fw={700} fz={20} miw={28} ta="center">
+                      {inCart}
+                    </Text>
+                    <ActionIcon
+                      size={44}
+                      variant="white"
+                      c="dark"
+                      bd="1px solid #ececf1"
+                      onClick={() => onAdd(p.id)}
+                      aria-label={`زيادة ${p.name}`}
+                    >
+                      <IconPlus size={20} />
+                    </ActionIcon>
+                  </Group>
+                </Flex>
               );
             })}
           </SimpleGrid>
@@ -153,10 +215,10 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
         <Box
           pos="absolute"
           inset={0}
-          style={{ zIndex: 10, background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(2px)' }}
+          style={{ zIndex: 10, background: 'rgba(248, 248, 251, 0.7)', backdropFilter: 'blur(2px)' }}
         >
           <Center h="100%">
-            <Card withBorder shadow="md" radius="lg" p="xl" w={360}>
+            <Card withBorder radius="lg" p="xl" w={360}>
               <Stack align="center">
                 <Text size="xl" fw={700}>
                   لا توجد وردية مفتوحة
@@ -164,7 +226,7 @@ export function ProductGrid({ products, cart, onAdd, onOpenShift, searchRef }: P
                 <Text c="dimmed" ta="center">
                   افتح وردية لبدء البيع
                 </Text>
-                <Button size="lg" color="green" fullWidth onClick={onOpenShift}>
+                <Button size="lg" color="dark" radius="xl" fullWidth onClick={onOpenShift}>
                   فتح وردية
                 </Button>
               </Stack>

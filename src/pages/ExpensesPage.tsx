@@ -4,7 +4,6 @@ import { modals } from '@mantine/modals';
 import { IconCategory, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { deleteExpense, listExpenseCategories, listExpenses } from '../api';
-import { METHOD_LABELS } from '../api/labels';
 import type { Expense } from '../api/types';
 import { RangePicker, useRange } from '../components/RangePicker';
 import { formatDate } from '../lib/dates';
@@ -80,7 +79,7 @@ export function ExpensesPage() {
               <Table.Th>الفئة</Table.Th>
               <Table.Th>الوصف</Table.Th>
               <Table.Th>المبلغ</Table.Th>
-              <Table.Th>طريقة الدفع</Table.Th>
+              <Table.Th>الدرج</Table.Th>
               <Table.Th>ملاحظة</Table.Th>
               <Table.Th />
             </Table.Tr>
@@ -102,14 +101,13 @@ export function ExpensesPage() {
                 <Table.Td>{e.description ?? '—'}</Table.Td>
                 <Table.Td fw={600}>{fmt(e.amountMilli)}</Table.Td>
                 <Table.Td>
-                  <Group gap={4} wrap="nowrap">
-                    {METHOD_LABELS[e.method]}
-                    {e.paidFromDrawer && (
-                      <Badge size="xs" variant="light">
-                        من الدرج
-                      </Badge>
-                    )}
-                  </Group>
+                  {e.paidFromDrawer ? (
+                    <Badge size="xs" variant="light">
+                      من الدرج
+                    </Badge>
+                  ) : (
+                    '—'
+                  )}
                 </Table.Td>
                 <Table.Td>{e.note ?? ''}</Table.Td>
                 <Table.Td>

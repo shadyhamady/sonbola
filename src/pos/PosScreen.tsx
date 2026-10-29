@@ -84,7 +84,7 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
   useHotkeys([['/', focusSearch, { usePhysicalKeys: true }]]);
 
   return (
-    <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
+    <Flex direction="column" h="100vh" style={{ overflow: 'hidden', background: '#f8f8fb' }}>
       <ShiftBar onOpenShift={() => setOpenShiftOpened(true)} onCloseShift={() => setCloseShiftOpened(true)} onAdmin={onAdmin} />
       <Flex style={{ flex: 1, minHeight: 0 }}>
         <Box style={{ flex: 1, minWidth: 0, position: 'relative' }}>
@@ -92,11 +92,12 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
             products={products}
             cart={cart}
             onAdd={(productId) => setQty(productId, (cart.get(productId) ?? 0) + 1)}
+            onSetQty={setQty}
             onOpenShift={() => setOpenShiftOpened(true)}
             searchRef={searchRef}
           />
         </Box>
-        <Box w={380} style={{ flexShrink: 0, borderInlineStart: '1px solid var(--mantine-color-gray-3)' }}>
+        <Box w={380} style={{ flexShrink: 0, borderInlineStart: '1px solid #ececf1' }}>
           <Cart
             products={products}
             cart={cart}

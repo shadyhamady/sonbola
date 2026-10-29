@@ -1,7 +1,16 @@
 import { invoiceCount } from '../lib/arabic';
-import { useMemo, useState } from 'react';
-import { Badge, Button, Collapse, Grid, Group, Paper, Progress, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Badge, Box, Button, Center, Collapse, Grid, Group, Paper, Progress, ScrollArea, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
+import {
+  IconBread,
+  IconCash,
+  IconChevronDown,
+  IconChevronUp,
+  IconClockHour4,
+  IconShoppingBag,
+  IconTruckDelivery,
+  IconUsers,
+} from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardSnapshot, periodReport, shiftSummary } from '../api';
 import { STOCK_STATUS, UNIT_LABELS } from '../api/labels';
@@ -38,6 +47,15 @@ const PNL_ROWS: PnlRow[] = [
   { label: 'المخزون المشطوب (هدر)', render: (r, f) => f(r.stockWrittenOffMilli) },
   { label: 'أجور الإنتاج المستحقة', render: (r, f) => f(r.bakerPayEarnedMilli) },
 ];
+
+/** Pastel rounded-square icon thumbnail for list rows. */
+function Thumb({ color, icon }: { color: string; icon: ReactNode }) {
+  return (
+    <Center w={44} h={44} bg={color} style={{ borderRadius: 'var(--mantine-radius-md)', flexShrink: 0 }} aria-hidden>
+      {icon}
+    </Center>
+  );
+}
 
 export function DashboardPage({ onNavigate }: { onNavigate?: (page: PageKey) => void }) {
   const { fmt } = useMoney();
@@ -80,132 +98,131 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: PageKey) => 
 
   return (
     <Stack gap="lg">
-      <Title order={2}>لوحة التحكم</Title>
+      <Title order={2} fz={32} c="var(--ink)">
+        لوحة التحكم
+      </Title>
 
-      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         <StatCard
           label="مبيعات اليوم"
+          tint="var(--pastel-lav)"
+          icon={<IconCash size={20} color="var(--ink)" />}
           value={today.data ? fmt(today.data.salesMilli) : '—'}
           onClick={go('sales')}
-        >
-          {today.data && (
-            <Text size="sm" c="dimmed">
-              نقطة البيع: {fmt(today.data.posSalesMilli)} • يدوي: {fmt(today.data.manualSalesMilli)}
-            </Text>
-          )}
-        </StatCard>
+        />
         <StatCard
           label="الوردية"
-          value={openShift ? 'مفتوحة' : 'لا توجد وردية مفتوحة'}
+          icon={<IconClockHour4 size={20} color="var(--ink)" />}
+          value={openShift ? 'مفتوحة' : 'لا توجد'}
           color={openShift ? 'green.8' : 'dimmed'}
           onClick={go('shifts')}
         >
           {openShift && (
             <Text size="sm" c="dimmed">
-              مفتوحة منذ {formatTime(openShift.openedAt)}
+              منذ {formatTime(openShift.openedAt)}
               {summary.data &&
-                ` • المبيعات: ${fmt(summary.data.salesTotalMilli)} (${invoiceCount(summary.data.saleCount)})`}
+                ` • ${fmt(summary.data.salesTotalMilli)} (${invoiceCount(summary.data.saleCount)})`}
             </Text>
           )}
         </StatCard>
+        <StatCard
+          label="مستحق للموردين"
+          icon={<IconTruckDelivery size={20} color="var(--ink)" />}
+          value={snap ? fmt(snap.owedToSuppliersMilli) : '—'}
+          onClick={go('purchases')}
+        >
+          {snap && (
+            <Text size="sm" c="dimmed">
+              {snap.unpaidInvoices > 0 ? `غير مسددة: ${invoiceCount(snap.unpaidInvoices)}` : 'كل الفواتير مسددة'}
+            </Text>
+          )}
+        </StatCard>
+        <StatCard
+          label="مستحق للخبازين"
+          icon={<IconUsers size={20} color="var(--ink)" />}
+          value={snap ? fmt(snap.owedToStaffMilli) : '—'}
+          onClick={go('staff')}
+        />
       </SimpleGrid>
 
       <Grid>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Stack gap="lg">
-            <Paper withBorder p="md" radius="md">
-              <Title order={3} size="h4" mb="sm">
+        <Grid.Col span={{ base: 12, md: 7 }}>
+          <Paper withBorder p="lg" radius="lg" h="100%">
+            <Group justify="space-between" mb="md">
+              <Title order={3} size="h4">
                 يجب شراؤه
               </Title>
-              {snap && toBuy.length === 0 ? (
-                <Stack gap={4}>
-                  <Text c="dimmed">لا يوجد ما يجب شراؤه</Text>
-                  {untrackedOut > 0 && (
-                    <Text size="sm" c="dimmed">
-                      حدد حد إعادة الطلب للمكونات من صفحة المخزون لتظهر هنا
-                    </Text>
-                  )}
+              {onNavigate && (
+                <Button variant="subtle" color="dark" size="compact-sm" onClick={() => onNavigate('inventory')}>
+                  عرض الكل
+                </Button>
+              )}
+            </Group>
+            {snap && toBuy.length === 0 ? (
+              <Stack gap={4}>
+                <Text c="dimmed">لا يوجد ما يجب شراؤه</Text>
+                {untrackedOut > 0 && (
+                  <Text size="sm" c="dimmed">
+                    حدد حد إعادة الطلب للمكونات من صفحة المخزون لتظهر هنا
+                  </Text>
+                )}
+              </Stack>
+            ) : (
+              <ScrollArea.Autosize mah={300}>
+                <Stack gap="sm">
+                  {toBuy.map((item) => (
+                    <Group key={item.name} wrap="nowrap" gap="md">
+                      <Thumb color="var(--pastel-mint)" icon={<IconShoppingBag size={20} color="var(--ink)" />} />
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Text fw={600} truncate>
+                          {item.name}
+                        </Text>
+                        <Text size="sm" c={item.stockQty < 0 ? 'red.8' : 'dimmed'}>
+                          المخزون {formatQty(item.stockQty)} {UNIT_LABELS[item.unit]} • حد الطلب {formatQty(item.reorderQty)}{' '}
+                          {UNIT_LABELS[item.unit]}
+                        </Text>
+                      </Box>
+                      <Badge color={STOCK_STATUS[item.status].color} variant="light">
+                        {STOCK_STATUS[item.status].label}
+                      </Badge>
+                    </Group>
+                  ))}
                 </Stack>
-              ) : (
-                <Table striped highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>المكوّن</Table.Th>
-                      <Table.Th>المخزون</Table.Th>
-                      <Table.Th>حد إعادة الطلب</Table.Th>
-                      <Table.Th>الحالة</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {toBuy.map((item) => (
-                      <Table.Tr key={item.name}>
-                        <Table.Td fw={600}>{item.name}</Table.Td>
-                        <Table.Td c={item.stockQty < 0 ? 'red.8' : undefined}>
-                          {formatQty(item.stockQty)} {UNIT_LABELS[item.unit]}
-                        </Table.Td>
-                        <Table.Td>
-                          {formatQty(item.reorderQty)} {UNIT_LABELS[item.unit]}
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge color={STOCK_STATUS[item.status].color} variant="light">
-                            {STOCK_STATUS[item.status].label}
-                          </Badge>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              )}
-            </Paper>
-
-            <Paper withBorder p="md" radius="md">
-              <Title order={3} size="h4" mb="sm">
-                منتجات منخفضة المخزون
-              </Title>
-              {snap && snap.lowStockProducts.length === 0 ? (
-                <Text c="dimmed">لا يوجد نقص</Text>
-              ) : (
-                <Table striped highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>المنتج</Table.Th>
-                      <Table.Th>المخزون</Table.Th>
-                      <Table.Th>حد التنبيه</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {snap?.lowStockProducts.map((p) => (
-                      <Table.Tr key={p.id}>
-                        <Table.Td fw={600}>{p.name}</Table.Td>
-                        <Table.Td c={p.stockQty < 0 ? 'red.8' : undefined}>{formatQty(p.stockQty)}</Table.Td>
-                        <Table.Td>{formatQty(p.lowStockQty)}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              )}
-            </Paper>
-          </Stack>
+              </ScrollArea.Autosize>
+            )}
+          </Paper>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Stack gap="sm">
-            <Title order={3} size="h4">
-              المستحقات
+        <Grid.Col span={{ base: 12, md: 5 }}>
+          <Paper withBorder p="lg" radius="lg" h="100%">
+            <Title order={3} size="h4" mb="md">
+              منتجات منخفضة المخزون
             </Title>
-            <StatCard
-              label="للموردين"
-              value={snap ? fmt(snap.owedToSuppliersMilli) : '—'}
-              onClick={go('purchases')}
-            >
-              {snap && (
-                <Text size="sm" c="dimmed">
-                  {snap.unpaidInvoices > 0 ? `غير مسددة: ${invoiceCount(snap.unpaidInvoices)}` : 'كل الفواتير مسددة'}
-                </Text>
-              )}
-            </StatCard>
-            <StatCard label="للخبازين" value={snap ? fmt(snap.owedToStaffMilli) : '—'} onClick={go('staff')} />
-          </Stack>
+            {snap && snap.lowStockProducts.length === 0 ? (
+              <Text c="dimmed">لا يوجد نقص</Text>
+            ) : (
+              <ScrollArea.Autosize mah={300}>
+                <Stack gap="sm">
+                  {snap?.lowStockProducts.map((p) => (
+                    <Group key={p.id} wrap="nowrap" gap="md">
+                      <Thumb color="var(--pastel-pink)" icon={<IconBread size={20} color="var(--ink)" />} />
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Text fw={600} truncate>
+                          {p.name}
+                        </Text>
+                        <Text size="sm" c="dimmed">
+                          حد التنبيه {formatQty(p.lowStockQty)}
+                        </Text>
+                      </Box>
+                      <Text fw={700} c={p.stockQty < 0 ? 'red.8' : undefined}>
+                        {formatQty(p.stockQty)}
+                      </Text>
+                    </Group>
+                  ))}
+                </Stack>
+              </ScrollArea.Autosize>
+            )}
+          </Paper>
         </Grid.Col>
       </Grid>
 
@@ -240,8 +257,8 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: PageKey) => 
         </Stack>
       )}
 
-      <Paper withBorder p="md" radius="md">
-        <Title order={3} size="h4" mb="sm">
+      <Paper withBorder p="lg" radius="lg">
+        <Title order={3} size="h4" mb="md">
           مبيعات آخر 7 أيام
         </Title>
         {week.data && (
@@ -249,7 +266,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: PageKey) => 
         )}
       </Paper>
 
-      <Paper withBorder p="md" radius="md">
+      <Paper withBorder p="lg" radius="lg">
         <Group justify="space-between" mb="sm">
           <Title order={3} size="h4">
             الأرباح هذا الشهر

@@ -1,4 +1,4 @@
-import type { AdjReason, Method, PayMode, PayType, PurchaseStatus, StockStatus, Unit } from './types';
+import type { AdjReason, PayMode, PayType, PurchaseStatus, StockStatus, Unit } from './types';
 
 export const UNIT_LABELS: Record<Unit, string> = {
   kg: 'كغ',
@@ -8,13 +8,6 @@ export const UNIT_LABELS: Record<Unit, string> = {
   pcs: 'حبة',
   pack: 'عبوة',
   tray: 'صينية',
-};
-
-export const METHOD_LABELS: Record<Method, string> = {
-  cash: 'نقداً',
-  card: 'بطاقة',
-  bank_transfer: 'تحويل بنكي',
-  other: 'أخرى',
 };
 
 export const PAY_TYPE_LABELS: Record<PayType, string> = {

@@ -13,3 +13,19 @@
 .mantine-Badge-label {
   overflow: visible;
 }
+
+/* Surfaces are white on the off-white canvas (Mantine paints Paper with the body colour). */
+.mantine-Paper-root,
+.mantine-Card-root {
+  background: #fff;
+}
+
+/* Pastel category/stat tokens shared by POS and dashboard. Dark ink keeps ≥10:1 on all of them. */
+:root {
+  --pastel-lav: #c9c9f0;
+  --pastel-mint: #c3e8dc;
+  --pastel-pink: #f8c8dc;
+  --pastel-sky: #c5e1f0;
+  --pastel-lilac: #e3cff0;
+  --ink: #1d1d22;
+}
