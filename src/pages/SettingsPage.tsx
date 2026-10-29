@@ -12,10 +12,12 @@ import {
   Title,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { IconDeviceFloppy } from '@tabler/icons-react';
+import { modals } from '@mantine/modals';
+import { IconDeviceFloppy, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { listIngredients, listStaff, saveSettings } from '../api';
+import { clearDemoData, listIngredients, listStaff, saveSettings } from '../api';
 import type { Settings } from '../api/types';
+import { ExportBackupButton, ImportBackupButton } from '../components/BackupActions';
 import { useMutate } from '../lib/useMutate';
 import { useSettings } from '../lib/useSettings';
 
@@ -25,6 +27,7 @@ export function SettingsPage() {
     <Stack maw={560}>
       <Title order={2}>الإعدادات</Title>
       {settings ? <SettingsForm settings={settings} /> : <Loader />}
+      {settings && <DataCard isDemo={settings.isDemo} />}
     </Stack>
   );
 }
@@ -139,5 +142,55 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+function DataCard({ isDemo }: { isDemo: boolean }) {
+  const clear = useMutate(clearDemoData, 'تم مسح البيانات التجريبية');
+  const confirmClear = () =>
+    modals.openConfirmModal({
+      title: 'مسح البيانات التجريبية',
+      children: (
+        <Text size="sm">
+          سيتم حذف كل المشتريات والإنتاج والمبيعات والمصروفات والموردين والمنتجات والمكونات، بما في ذلك أي شيء
+          أضفته بعد البيانات التجريبية، وتعود القوائم الأولية فارغة. يبقى اسم المخبز والعملة. لا يمكن التراجع، ويُنصح
+          بتصدير نسخة احتياطية أولاً.
+        </Text>
+      ),
+      labels: { confirm: 'مسح كل البيانات', cancel: 'إلغاء' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => clear.mutate(),
+    });
+  return (
+    <Card withBorder>
+      <Stack>
+        <Text fw={700}>النسخ الاحتياطي والبيانات</Text>
+        <Text size="sm" c="dimmed">
+          التصدير يحفظ كل بياناتك في ملف واحد يمكن نقله إلى جهاز آخر، والاستيراد يستبدل بيانات هذا الجهاز بمحتوى الملف.
+        </Text>
+        <Group>
+          <ExportBackupButton />
+          <ImportBackupButton />
+        </Group>
+        {isDemo && (
+          <>
+            <Text size="sm" c="dimmed">
+              التطبيق يحتوي حالياً على بيانات تجريبية.
+            </Text>
+            <div>
+              <Button
+                color="red"
+                variant="light"
+                leftSection={<IconTrash size={18} />}
+                loading={clear.isPending}
+                onClick={confirmClear}
+              >
+                مسح البيانات التجريبية
+              </Button>
+            </div>
+          </>
+        )}
+      </Stack>
+    </Card>
   );
 }

@@ -1,4 +1,6 @@
+pub mod backup;
 pub mod catalog;
+pub mod demo;
 pub mod diesel;
 pub mod expenses;
 pub mod inventory;

@@ -23,6 +23,8 @@ export interface Settings {
   tankCapacityL: number;
   defaultBakerId: number | null;
   isConfigured: boolean;
+  /** Demo data loaded at onboarding is still present. */
+  isDemo: boolean;
 }
 
 export interface SettingsInput {

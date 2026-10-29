@@ -14,6 +14,7 @@ pub struct AppState(pub Mutex<rusqlite::Connection>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -86,7 +87,11 @@ pub fn run() {
             commands::list_daily_sales,
             commands::period_report,
             commands::monthly_summary,
-            commands::dashboard_snapshot
+            commands::dashboard_snapshot,
+            commands::load_demo_data,
+            commands::clear_demo_data,
+            commands::export_backup,
+            commands::import_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

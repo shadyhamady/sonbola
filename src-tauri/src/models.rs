@@ -25,6 +25,8 @@ pub struct Settings {
     pub tank_capacity_l: f64,
     pub default_baker_id: Option<i64>,
     pub is_configured: bool,
+    /// True while the demo data loaded at onboarding is still in the database.
+    pub is_demo: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]

@@ -53,6 +53,10 @@ import type {
 
 export const getSettings = () => invoke<Settings>('get_settings');
 export const saveSettings = (input: SettingsInput) => invoke<Settings>('save_settings', { input });
+export const loadDemoData = () => invoke<void>('load_demo_data');
+export const clearDemoData = () => invoke<void>('clear_demo_data');
+export const exportBackup = (path: string) => invoke<void>('export_backup', { path });
+export const importBackup = (path: string) => invoke<void>('import_backup', { path });
 export const listIngredients = (includeArchived: boolean) => invoke<Ingredient[]>('list_ingredients', { includeArchived });
 export const createIngredient = (input: NewIngredient) => invoke<number>('create_ingredient', { input });
 export const updateIngredient = (input: UpdateIngredient) => invoke<void>('update_ingredient', { input });

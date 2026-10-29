@@ -38,3 +38,12 @@ Schema migrations are in `src-tauri/migrations/` and run on startup (`PRAGMA use
 - `src-tauri/src/commands.rs` — one Tauri command per service function.
 - `src/api/` — typed command wrappers and Arabic labels; `src/pages/`, `src/pos/` — screens.
 - `src/lib/costing.ts` mirrors the Rust `unit_costs` formula for live previews; keep them in sync.
+
+## First run, demo data and backups
+
+- On first launch the app asks for the bakery name and currency. The **إضافة بيانات تجريبية** switch loads a week of
+  purchases, production, shifts, sales, expenses and diesel logs so you can explore; **الإعدادات → مسح البيانات التجريبية**
+  removes it (and anything added since) and keeps the name/currency.
+- **الإعدادات → النسخ الاحتياطي**: *تصدير* writes all data to one `.sonbola` file (a SQLite snapshot); *استيراد*
+  replaces the current data with a chosen file (also offered on the first-run screen). Before every import the current data is
+  saved to `backups/before-import-<time>.sonbola` in the app data folder.

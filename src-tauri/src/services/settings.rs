@@ -28,6 +28,7 @@ pub fn get_settings(conn: &Connection) -> AppResult<Settings> {
         tank_capacity_l: m.get("tank_capacity_l").and_then(|v| v.parse().ok()).unwrap_or(1000.0),
         default_baker_id: id("default_baker_id"),
         is_configured: m.contains_key("currency_symbol"),
+        is_demo: m.contains_key("demo_data"),
     })
 }
 

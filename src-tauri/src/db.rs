@@ -7,6 +7,9 @@ use crate::error::AppError;
 
 static MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
 
+/// Number of schema migrations this build knows; a backup with a higher `user_version` is too new.
+pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
+
 pub fn open(path: &Path) -> Result<Connection, AppError> {
     let mut conn = Connection::open(path)?;
     configure(&mut conn)?;
@@ -19,7 +22,7 @@ pub fn open_in_memory() -> Result<Connection, AppError> {
     Ok(conn)
 }
 
-fn configure(conn: &mut Connection) -> Result<(), AppError> {
+pub fn configure(conn: &mut Connection) -> Result<(), AppError> {
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
     migrate(conn)
 }

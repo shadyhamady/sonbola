@@ -1,11 +1,13 @@
 //! One Tauri command per public service function; each locks the connection and delegates.
 
-use tauri::State;
+use std::path::PathBuf;
+
+use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 use crate::error::AppResult;
 use crate::models::*;
-use crate::services::{catalog, diesel, expenses, inventory, production, purchases, reports, sales, settings, shifts, staff, suppliers};
+use crate::services::{backup, catalog, demo, diesel, expenses, inventory, production, purchases, reports, sales, settings, shifts, staff, suppliers};
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> AppResult<Settings> {
@@ -330,4 +332,29 @@ pub fn monthly_summary(state: State<AppState>, year: i32) -> AppResult<Vec<Month
 #[tauri::command]
 pub fn dashboard_snapshot(state: State<AppState>) -> AppResult<Snapshot> {
     reports::dashboard_snapshot(&state.0.lock().unwrap())
+}
+
+#[tauri::command]
+pub fn load_demo_data(state: State<AppState>) -> AppResult<()> {
+    demo::load_demo_data(&mut state.0.lock().unwrap())
+}
+
+#[tauri::command]
+pub fn clear_demo_data(state: State<AppState>) -> AppResult<()> {
+    demo::clear_demo_data(&mut state.0.lock().unwrap())
+}
+
+#[tauri::command]
+pub fn export_backup(state: State<AppState>, path: String) -> AppResult<()> {
+    backup::export_to(&state.0.lock().unwrap(), &PathBuf::from(path))
+}
+
+/// Replaces all data with the backup at `path`; the current data is first saved to
+/// `<app data>/backups/before-import-<timestamp>.sonbola`.
+#[tauri::command]
+pub fn import_backup(app: AppHandle, state: State<AppState>, path: String) -> AppResult<()> {
+    let dir = app.path().app_data_dir().map_err(|e| crate::error::AppError::Validation(e.to_string()))?.join("backups");
+    std::fs::create_dir_all(&dir)?;
+    let safety = dir.join(format!("before-import-{}.sonbola", crate::db::now_ms()));
+    backup::import_from(&mut state.0.lock().unwrap(), &PathBuf::from(path), Some(&safety))
 }
