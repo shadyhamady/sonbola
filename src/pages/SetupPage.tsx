@@ -15,7 +15,7 @@ interface SetupVars {
 export function SetupPage() {
   const { data: settings } = useSettings();
   const form = useForm({
-    initialValues: { bakeryName: 'سنبلة', currencySymbol: 'ر.س', currencyDecimals: '2', demo: false },
+    initialValues: { bakeryName: 'سنبلة', currencySymbol: 'ل.س', currencyDecimals: '0', demo: false },
     validate: {
       bakeryName: (v) => (v.trim() ? null : 'أدخل اسم المخبز'),
       currencySymbol: (v) => (v.trim() ? null : 'أدخل رمز العملة'),

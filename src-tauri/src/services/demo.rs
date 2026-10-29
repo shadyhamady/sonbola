@@ -26,12 +26,17 @@ struct Item {
     daily: i64,
 }
 
+/// Whole currency units to milli-units.
+const fn syp(units: i64) -> i64 {
+    units * 1000
+}
+
 const ITEMS: &[Item] = &[
-    Item { name: "صمون", price: 2000, batch_yield: 40, recipe: &[("دقيق", 5.0), ("خميرة", 0.1), ("ملح", 0.1)], pay_mode: "per_unit", pay_rate: 50, overhead: 2000, daily: 32 },
-    Item { name: "كرواسون", price: 4000, batch_yield: 24, recipe: &[("دقيق", 2.0), ("زبدة", 1.0), ("سكر", 0.2), ("حليب", 0.5), ("خميرة", 0.05)], pay_mode: "per_unit", pay_rate: 150, overhead: 3000, daily: 18 },
-    Item { name: "كوكيز", price: 3000, batch_yield: 30, recipe: &[("دقيق", 1.5), ("سكر", 0.8), ("زبدة", 0.7), ("بيض", 6.0)], pay_mode: "per_batch", pay_rate: 4000, overhead: 2500, daily: 22 },
-    Item { name: "كعك", price: 1500, batch_yield: 40, recipe: &[("دقيق", 3.0), ("سمن", 0.3), ("سمسم", 0.2)], pay_mode: "per_unit", pay_rate: 50, overhead: 2000, daily: 30 },
-    Item { name: "برازق", price: 2500, batch_yield: 30, recipe: &[("دقيق", 1.5), ("سمسم", 0.4), ("سكر", 0.3), ("زيت نباتي", 0.2)], pay_mode: "per_unit", pay_rate: 100, overhead: 2000, daily: 20 },
+    Item { name: "صمون", price: syp(5_000), batch_yield: 40, recipe: &[("دقيق", 5.0), ("خميرة", 0.1), ("ملح", 0.1)], pay_mode: "per_unit", pay_rate: syp(150), overhead: syp(5000), daily: 32 },
+    Item { name: "كرواسون", price: syp(10_000), batch_yield: 24, recipe: &[("دقيق", 2.0), ("زبدة", 1.0), ("سكر", 0.2), ("حليب", 0.5), ("خميرة", 0.05)], pay_mode: "per_unit", pay_rate: syp(400), overhead: syp(7500), daily: 18 },
+    Item { name: "كوكيز", price: syp(7_500), batch_yield: 30, recipe: &[("دقيق", 1.5), ("سكر", 0.8), ("زبدة", 0.7), ("بيض", 6.0)], pay_mode: "per_batch", pay_rate: syp(10000), overhead: syp(6000), daily: 22 },
+    Item { name: "كعك", price: syp(4_000), batch_yield: 40, recipe: &[("دقيق", 3.0), ("سمن", 0.3), ("سمسم", 0.2)], pay_mode: "per_unit", pay_rate: syp(150), overhead: syp(5000), daily: 30 },
+    Item { name: "برازق", price: syp(6_000), batch_yield: 30, recipe: &[("دقيق", 1.5), ("سمسم", 0.4), ("سكر", 0.3), ("زيت نباتي", 0.2)], pay_mode: "per_unit", pay_rate: syp(250), overhead: syp(5000), daily: 20 },
 ];
 
 fn id_of(conn: &Connection, table: &str, name: &str) -> AppResult<i64> {
@@ -137,16 +142,16 @@ fn build(conn: &mut Connection) -> AppResult<()> {
         )?;
         Ok(())
     };
-    buy(conn, Some(flour_co), "1001", &[("دقيق", 100.0, 4500)], 100)?;
-    buy(conn, Some(dairy_co), "2001", &[("زبدة", 15.0, 28000), ("حليب", 20.0, 4000), ("بيض", 120.0, 500)], 50)?;
+    buy(conn, Some(flour_co), "1001", &[("دقيق", 100.0, syp(11_000))], 100)?;
+    buy(conn, Some(dairy_co), "2001", &[("زبدة", 15.0, syp(70_000)), ("حليب", 20.0, syp(10_000)), ("بيض", 120.0, syp(1_250))], 50)?;
     buy(
         conn,
         Some(wholesale),
         "3001",
-        &[("سكر", 25.0, 3000), ("خميرة", 2.0, 12000), ("ملح", 5.0, 1000), ("سمن", 5.0, 22000), ("سمسم", 6.0, 15000), ("زيت نباتي", 10.0, 6000)],
+        &[("سكر", 25.0, syp(7_500)), ("خميرة", 2.0, syp(30_000)), ("ملح", 5.0, syp(2_500)), ("سمن", 5.0, syp(55_000)), ("سمسم", 6.0, syp(37_500)), ("زيت نباتي", 10.0, syp(15_000))],
         100,
     )?;
-    buy(conn, None, "", &[("ديزل", 150.0, 2000)], 100)?;
+    buy(conn, None, "", &[("ديزل", 150.0, syp(5_000))], 100)?;
 
     // Products with recipes and baker pay.
     for it in ITEMS {
@@ -208,7 +213,7 @@ fn build(conn: &mut Connection) -> AppResult<()> {
 
     // Operating expenses, wages and the diesel log.
     let category = |conn: &Connection, name: &str| id_of(conn, "expense_categories", name);
-    for (name, days_ago, amount) in [("كهرباء", 4, 120_000), ("تغليف", 2, 60_000)] {
+    for (name, days_ago, amount) in [("كهرباء", 4, syp(300_000)), ("تغليف", 2, syp(150_000))] {
         expenses::create_expense(
             conn,
             NewExpense {
@@ -228,7 +233,7 @@ fn build(conn: &mut Connection) -> AppResult<()> {
             staff_id: id_of(conn, "staff", "كاشير")?,
             paid_at: at(conn, 1, "18:00")?,
             period: Some("هذا الأسبوع".into()),
-            base_milli: 150_000,
+            base_milli: syp(375_000),
             bonus_milli: 0,
             deductions_milli: 0,
             method: "cash".into(),
@@ -255,7 +260,7 @@ fn build(conn: &mut Connection) -> AppResult<()> {
 /// POS is ready to use.
 fn run_shift(conn: &mut Connection, days_ago: i64, product_ids: &[i64]) -> AppResult<()> {
     let today = days_ago == 0;
-    let shift = shifts::open_shift(conn, OpenShiftInput { opening_cash_milli: 100_000 })?;
+    let shift = shifts::open_shift(conn, OpenShiftInput { opening_cash_milli: syp(250_000) })?;
     // Three receipts per product share the day's volume 40 / 35 / 25; today only the first two.
     let receipts: &[i64] = if today { &[40, 35] } else { &[40, 35, 25] };
     let base = at(conn, days_ago, "09:00")?;
@@ -286,13 +291,13 @@ fn run_shift(conn: &mut Connection, days_ago: i64, product_ids: &[i64]) -> AppRe
     if today {
         return Ok(());
     }
-    // One day ends 5 short in the drawer, so the shifts page shows a difference.
+    // One day ends 12,500 short in the drawer, so the shifts page shows a difference.
     let expected = shifts::shift_summary(conn, shift.id)?.expected_cash_milli;
     let short = days_ago == 3;
     shifts::close_shift(
         conn,
         CloseShiftInput {
-            counted_cash_milli: if short { expected - 5000 } else { expected },
+            counted_cash_milli: if short { expected - syp(12_500) } else { expected },
             note: short.then(|| "فرق بسيط في الدرج".to_string()),
         },
     )?;
@@ -350,8 +355,8 @@ mod tests {
         assert_eq!(distinct_days, 7);
 
         let r = reports::period_report(&c, Range::all()).unwrap();
-        assert!(r.sales_milli > 1_500_000 && r.units_produced > 1000);
-        assert!(r.wages_milli == 150_000 && r.operating_expenses_milli == 180_000);
+        assert!(r.sales_milli > syp(3_750_000) && r.units_produced > 1000);
+        assert!(r.wages_milli == syp(375_000) && r.operating_expenses_milli == syp(450_000));
         let snap = reports::dashboard_snapshot(&c).unwrap();
         assert!(snap.shopping_list.iter().any(|s| s.name == "دقيق"), "flour is below its reorder level");
         assert!(snap.owed_to_suppliers_milli > 0);
