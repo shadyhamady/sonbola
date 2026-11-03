@@ -92,4 +92,4 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
           # The offline Windows build would otherwise upload under the same file names as the online one.
-          assetNamePattern: ${{ matrix.pattern || '[name]_[version]_[platform]_[arch][setup][ext]' }}
+          releaseAssetNamePattern: ${{ matrix.pattern || '[name]_[version]_[platform]_[arch][setup][ext]' }}
