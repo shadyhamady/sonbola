@@ -46,8 +46,11 @@ jobs:
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-          - platform: 'windows-latest'
+          - platform: 'windows-latest' # online: small installer, downloads WebView2 only if missing
             args: ''
+          - platform: 'windows-latest' # offline: embeds the WebView2 installer (~130 MB larger)
+            args: '--config src-tauri/tauri.offline.conf.json'
+            pattern: '[name]_[version]_[arch]-offline[setup][ext]'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -88,3 +91,5 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+          # The offline Windows build would otherwise upload under the same file names as the online one.
+          assetNamePattern: ${{ matrix.pattern || '[name]_[version]_[platform]_[arch][setup][ext]' }}
