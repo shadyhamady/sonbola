@@ -27,6 +27,8 @@ pub struct Settings {
     pub is_configured: bool,
     /// True while the demo data loaded at onboarding is still in the database.
     pub is_demo: bool,
+    /// A management PIN is set.
+    pub pin_enabled: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -38,6 +40,22 @@ pub struct SettingsInput {
     pub diesel_ingredient_id: Option<i64>,
     pub tank_capacity_l: f64,
     pub default_baker_id: Option<i64>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SetPinInput {
+    pub new_pin: String,
+    /// Required when a PIN is already set.
+    #[serde(default)]
+    pub current_pin: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetPinInput {
+    pub recovery_code: String,
+    pub new_pin: String,
 }
 
 // ---------- catalog ----------
@@ -290,20 +308,37 @@ pub struct StockAdjustment {
 
 // ---------- production ----------
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductionInput {
     pub product_id: i64,
+    /// Pieces produced. Used when `unit` is absent or "pieces".
+    #[serde(default)]
     pub units: i64,
     pub staff_ids: Vec<i64>,
+    /// Entry unit: "pieces" (default), "batches" or "kg". For the last two, `quantity` is converted to pieces.
+    #[serde(default)]
+    pub unit: Option<String>,
+    #[serde(default)]
+    pub quantity: Option<f64>,
+    /// For "kg": the recipe ingredient whose weight is counted; `None` counts the full dough weight.
+    #[serde(default)]
+    pub basis_ingredient_id: Option<i64>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordProductionInput {
     pub product_id: i64,
+    #[serde(default)]
     pub units: i64,
     pub staff_ids: Vec<i64>,
+    #[serde(default)]
+    pub unit: Option<String>,
+    #[serde(default)]
+    pub quantity: Option<f64>,
+    #[serde(default)]
+    pub basis_ingredient_id: Option<i64>,
     pub produced_at: i64,
     pub note: Option<String>,
 }
@@ -333,6 +368,8 @@ pub struct PreviewWorker {
 #[serde(rename_all = "camelCase")]
 pub struct ProductionPreview {
     pub pay_mode: String,
+    /// Pieces this entry produces (converted from batches / kg when entered that way).
+    pub units: i64,
     pub batches: f64,
     pub ingredients: Vec<PreviewIngredient>,
     pub workers: Vec<PreviewWorker>,
@@ -356,6 +393,9 @@ pub struct ProductionRow {
     pub overhead_milli: i64,
     pub worker_names: Vec<String>,
     pub note: Option<String>,
+    /// "batches" or "kg" when entered that way (with `input_qty`); `None` for pieces.
+    pub input_unit: Option<String>,
+    pub input_qty: Option<f64>,
 }
 
 // ---------- staff ----------

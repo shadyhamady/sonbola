@@ -11,7 +11,7 @@ export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        عدد الدفعات: {formatQty(preview.batches)}
+        عدد القطع: {formatQty(preview.units)} • عدد الدفعات: {formatQty(preview.batches)}
       </Text>
 
       {preview.ingredients.length === 0 ? (

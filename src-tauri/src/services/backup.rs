@@ -14,7 +14,16 @@ use crate::db;
 use crate::error::{AppError, AppResult, invalid};
 
 /// Settings that survive `reset_data` (the bakery's identity, not its records).
-const KEPT_SETTINGS: &[&str] = &["bakery_name", "currency_symbol", "currency_decimals", "tank_capacity_l"];
+const KEPT_SETTINGS: &[&str] = &[
+    "bakery_name",
+    "currency_symbol",
+    "currency_decimals",
+    "tank_capacity_l",
+    "pin_salt",
+    "pin_hash",
+    "recovery_salt",
+    "recovery_hash",
+];
 
 const NOT_A_BACKUP: &str = "الملف ليس نسخة احتياطية صالحة لسنبلة";
 

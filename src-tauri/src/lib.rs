@@ -91,7 +91,11 @@ pub fn run() {
             commands::load_demo_data,
             commands::clear_demo_data,
             commands::export_backup,
-            commands::import_backup
+            commands::import_backup,
+            commands::set_pin,
+            commands::verify_pin,
+            commands::remove_pin,
+            commands::reset_pin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

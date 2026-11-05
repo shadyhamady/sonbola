@@ -3,6 +3,7 @@ import {
   Card,
   Group,
   Loader,
+  Modal,
   NumberInput,
   SegmentedControl,
   Select,
@@ -11,6 +12,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useState } from 'react';
 import { useForm } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { IconDeviceFloppy, IconTrash } from '@tabler/icons-react';
@@ -18,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { clearDemoData, listIngredients, listStaff, saveSettings } from '../api';
 import type { Settings } from '../api/types';
 import { ExportBackupButton, ImportBackupButton } from '../components/BackupActions';
+import { RecoveryCodeBox, RemovePinModal, SetPinModal } from '../components/PinDialogs';
 import { useMutate } from '../lib/useMutate';
 import { useSettings } from '../lib/useSettings';
 
@@ -27,6 +30,7 @@ export function SettingsPage() {
     <Stack maw={560}>
       <Title order={2}>الإعدادات</Title>
       {settings ? <SettingsForm settings={settings} /> : <Loader />}
+      {settings && <PinCard enabled={settings.pinEnabled} />}
       {settings && <DataCard isDemo={settings.isDemo} />}
     </Stack>
   );
@@ -191,6 +195,52 @@ function DataCard({ isDemo }: { isDemo: boolean }) {
           </>
         )}
       </Stack>
+    </Card>
+  );
+}
+
+function PinCard({ enabled }: { enabled: boolean }) {
+  const [setting, setSetting] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  return (
+    <Card withBorder>
+      <Stack>
+        <Text fw={700}>رمز دخول الإدارة</Text>
+        <Text size="sm" c="dimmed">
+          {enabled
+            ? 'شاشة الإدارة محمية برمز. يُطلب الرمز في كل مرة تنتقل فيها من نقطة البيع إلى الإدارة.'
+            : 'احمِ شاشة الإدارة (التقارير والأسعار والتكاليف) برمز من 4 إلى 8 أرقام. نقطة البيع تبقى مفتوحة للكاشير.'}
+        </Text>
+        <Text size="xs" c="dimmed">
+          عند التفعيل تحصل على رمز استرداد يُعرض مرة واحدة، احتفظ به خارج الجهاز: هو الطريقة الوحيدة لإعادة تعيين الرمز إذا
+          نسيته، لأن التطبيق يعمل بدون إنترنت. الرمز يمنع فتح الشاشة فقط ولا يشفّر ملف البيانات.
+        </Text>
+        <Group>
+          <Button variant={enabled ? 'default' : 'filled'} onClick={() => setSetting(true)}>
+            {enabled ? 'تغيير الرمز' : 'تفعيل الرمز'}
+          </Button>
+          {enabled && (
+            <Button variant="light" color="red" onClick={() => setRemoving(true)}>
+              إلغاء الرمز
+            </Button>
+          )}
+        </Group>
+      </Stack>
+      <SetPinModal opened={setting} hasPin={enabled} onClose={() => setSetting(false)} onCode={setCode} />
+      <RemovePinModal opened={removing} onClose={() => setRemoving(false)} />
+      <Modal
+        opened={code !== null}
+        onClose={() => {}}
+        withCloseButton={false}
+        closeOnClickOutside={false}
+        closeOnEscape={false}
+        title="رمز الاسترداد"
+        centered
+        size="sm"
+      >
+        {code && <RecoveryCodeBox code={code} onDone={() => setCode(null)} />}
+      </Modal>
     </Card>
   );
 }

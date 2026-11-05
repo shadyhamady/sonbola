@@ -7,6 +7,7 @@ import {
   MultiSelect,
   NumberInput,
   Paper,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -17,8 +18,9 @@ import { DatePickerInput } from '@mantine/dates';
 import { useForm } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { listProducts, listStaff, previewProduction, recordProduction } from '../api';
-import type { ProductionInput } from '../api/types';
+import { getRecipe, listProducts, listStaff, previewProduction, recordProduction } from '../api';
+import { UNIT_LABELS } from '../api/labels';
+import type { ProductionEntryUnit, ProductionInput } from '../api/types';
 import { toLocalDateString, withCurrentTime } from '../lib/dates';
 import { useMutate } from '../lib/useMutate';
 import { useSettings } from '../lib/useSettings';
@@ -28,6 +30,9 @@ import { ProductionPreviewPanel } from './production/ProductionPreviewPanel';
 interface FormValues {
   date: string | null;
   productId: string | null;
+  unit: ProductionEntryUnit;
+  /** kg only: recipe ingredient to count; '' = full dough weight. */
+  basisId: string;
   units: number | string;
   staffIds: string[];
   note: string;
@@ -40,22 +45,58 @@ export function ProductionPage() {
   const bakers = (staff.data ?? []).filter((s) => s.payType === 'production');
 
   const form = useForm<FormValues>({
-    initialValues: { date: toLocalDateString(new Date()), productId: null, units: '', staffIds: [], note: '' },
+    initialValues: {
+      date: toLocalDateString(new Date()),
+      productId: null,
+      unit: 'pieces',
+      basisId: '',
+      units: '',
+      staffIds: [],
+      note: '',
+    },
     validate: {
       date: (v) => (v ? null : 'اختر التاريخ'),
       productId: (v) => (v ? null : 'اختر المنتج'),
-      units: (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'أدخل عدداً صحيحاً أكبر من صفر'),
+      units: (val, values) =>
+        Number(val) > 0 && (values.unit !== 'pieces' || Number.isInteger(Number(val)))
+          ? null
+          : values.unit === 'pieces'
+            ? 'أدخل عدداً صحيحاً أكبر من صفر'
+            : 'أدخل كمية أكبر من صفر',
     },
   });
   const v = form.values;
 
-  const units = Number(v.units);
-  const inputValid = v.productId != null && v.units !== '' && Number.isInteger(units) && units >= 1;
-  const input: ProductionInput = {
-    productId: Number(v.productId),
-    units,
-    staffIds: v.staffIds.map(Number),
-  };
+  const recipe = useQuery({
+    queryKey: ['getRecipe', v.productId],
+    queryFn: () => getRecipe(Number(v.productId)),
+    enabled: v.productId != null,
+  });
+  // Ingredients measured by weight can be the basis for a kg entry.
+  const basisOptions = [
+    { value: '', label: 'وزن العجينة الكامل' },
+    ...(recipe.data ?? [])
+      .filter((l) => ['kg', 'g', 'l', 'ml'].includes(l.unit))
+      .map((l) => ({ value: String(l.ingredientId), label: `${l.ingredientName} (${UNIT_LABELS[l.unit]})` })),
+  ];
+
+  // A basis picked for another product no longer applies after switching product.
+  const basisId = basisOptions.some((o) => o.value === v.basisId) ? v.basisId : '';
+
+  const qty = Number(v.units);
+  const inputValid =
+    v.productId != null && v.units !== '' && qty > 0 && (v.unit !== 'pieces' || Number.isInteger(qty));
+  const input: ProductionInput =
+    v.unit === 'pieces'
+      ? { productId: Number(v.productId), units: qty, staffIds: v.staffIds.map(Number) }
+      : {
+          productId: Number(v.productId),
+          units: 0,
+          unit: v.unit,
+          quantity: qty,
+          basisIngredientId: v.unit === 'kg' && basisId ? Number(basisId) : null,
+          staffIds: v.staffIds.map(Number),
+        };
   const preview = useQuery({
     queryKey: ['previewProduction', input],
     queryFn: () => previewProduction(input),
@@ -105,11 +146,37 @@ export function ProductionPage() {
                   data={(products.data ?? []).map((p) => ({ value: String(p.id), label: p.name }))}
                   {...form.getInputProps('productId')}
                 />
+                <div>
+                  <Text size="sm" fw={500} mb={4}>
+                    وحدة الإنتاج
+                  </Text>
+                  <SegmentedControl
+                    fullWidth
+                    data={[
+                      { value: 'pieces', label: 'قطعة' },
+                      { value: 'batches', label: 'دفعة' },
+                      { value: 'kg', label: 'كغ' },
+                    ]}
+                    {...form.getInputProps('unit')}
+                  />
+                </div>
+                {v.unit === 'kg' && (
+                  <Select
+                    label="الوزن المحسوب"
+                    description="يُحوَّل الوزن إلى قطع حسب وصفة المنتج"
+                    allowDeselect={false}
+                    data={basisOptions}
+                    value={basisId}
+                    onChange={(val) => form.setFieldValue('basisId', val ?? '')}
+                  />
+                )}
                 <NumberInput
-                  label="الكمية المنتجة"
-                  min={1}
-                  allowDecimal={false}
+                  label={v.unit === 'kg' ? 'الكمية المنتجة (كغ)' : v.unit === 'batches' ? 'عدد الدفعات' : 'الكمية المنتجة (قطعة)'}
+                  min={0}
+                  allowDecimal={v.unit !== 'pieces'}
+                  decimalScale={3}
                   allowNegative={false}
+                  hideControls={v.unit !== 'pieces'}
                   {...form.getInputProps('units')}
                 />
                 <MultiSelect

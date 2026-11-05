@@ -25,6 +25,8 @@ export interface Settings {
   isConfigured: boolean;
   /** Demo data loaded at onboarding is still present. */
   isDemo: boolean;
+  /** A management PIN is set. */
+  pinEnabled: boolean;
 }
 
 export interface SettingsInput {
@@ -233,10 +235,18 @@ export interface StockAdjustment {
 }
 
 // ---------- production ----------
+export type ProductionEntryUnit = 'pieces' | 'batches' | 'kg';
+
 export interface ProductionInput {
   productId: number;
+  /** Pieces; ignored (send 0) when `unit` is batches or kg. */
   units: number;
   staffIds: number[];
+  /** How `quantity` is measured; omitted/`pieces` means `units` is the piece count. */
+  unit?: ProductionEntryUnit;
+  quantity?: number;
+  /** For kg: the recipe ingredient whose weight is counted; null = full dough weight. */
+  basisIngredientId?: number | null;
 }
 
 export interface RecordProductionInput extends ProductionInput {
@@ -263,6 +273,8 @@ export interface PreviewWorker {
 
 export interface ProductionPreview {
   payMode: PayMode;
+  /** Pieces this entry produces (converted from batches / kg). */
+  units: number;
   batches: number;
   ingredients: PreviewIngredient[];
   workers: PreviewWorker[];
@@ -284,6 +296,9 @@ export interface ProductionRow {
   overheadMilli: number;
   workerNames: string[];
   note: string | null;
+  /** Set when entered in batches or kg; `units` is the resulting pieces. */
+  inputUnit: Exclude<ProductionEntryUnit, 'pieces'> | null;
+  inputQty: number | null;
 }
 
 // ---------- staff ----------

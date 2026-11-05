@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { SetupPage } from './pages/SetupPage';
 import { ShiftsPage } from './pages/ShiftsPage';
 import { StaffPage } from './pages/StaffPage';
+import { UnlockModal } from './components/PinDialogs';
 import { PosScreen, usePosSession } from './pos/PosScreen';
 
 const PAGES: Record<PageKey, (props: { onNavigate: (page: PageKey) => void }) => React.JSX.Element> = {
@@ -36,6 +37,7 @@ export default function App() {
   const { data: settings, isLoading, error } = useSettings();
   const [mode, setMode] = useState<'pos' | 'admin'>('pos');
   const [page, setPage] = useState<PageKey>('dashboard');
+  const [unlocking, setUnlocking] = useState(false);
   // Owned here, not by PosScreen, so the cart and last sale survive a trip to admin.
   const posSession = usePosSession();
 
@@ -50,7 +52,18 @@ export default function App() {
     return <Center h="100vh">{String(error)}</Center>;
   }
   if (!settings.isConfigured) return <SetupPage />;
-  if (mode === 'pos') return <PosScreen session={posSession} onAdmin={() => setMode('admin')} />;
+  if (mode === 'pos') {
+    // With a PIN set, every entry to the management area asks for it; leaving admin locks it again.
+    return (
+      <>
+        <PosScreen
+          session={posSession}
+          onAdmin={() => (settings.pinEnabled ? setUnlocking(true) : setMode('admin'))}
+        />
+        <UnlockModal opened={unlocking} onClose={() => setUnlocking(false)} onUnlocked={() => setMode('admin')} />
+      </>
+    );
+  }
 
   const Page = PAGES[page];
   return (

@@ -5,7 +5,10 @@ use rusqlite::Connection;
 
 use crate::error::AppError;
 
-static MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+static MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_production_entry_unit.sql"),
+];
 
 /// Number of schema migrations this build knows; a backup with a higher `user_version` is too new.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;

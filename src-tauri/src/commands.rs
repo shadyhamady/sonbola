@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::AppState;
 use crate::error::AppResult;
 use crate::models::*;
-use crate::services::{backup, catalog, demo, diesel, expenses, inventory, production, purchases, reports, sales, settings, shifts, staff, suppliers};
+use crate::services::{backup, catalog, demo, pin, diesel, expenses, inventory, production, purchases, reports, sales, settings, shifts, staff, suppliers};
 
 #[tauri::command]
 pub fn get_settings(state: State<AppState>) -> AppResult<Settings> {
@@ -357,4 +357,24 @@ pub fn import_backup(app: AppHandle, state: State<AppState>, path: String) -> Ap
     std::fs::create_dir_all(&dir)?;
     let safety = dir.join(format!("before-import-{}.sonbola", crate::db::now_ms()));
     backup::import_from(&mut state.0.lock().unwrap(), &PathBuf::from(path), Some(&safety))
+}
+
+#[tauri::command]
+pub fn set_pin(state: State<AppState>, input: SetPinInput) -> AppResult<String> {
+    pin::set_pin(&mut state.0.lock().unwrap(), input)
+}
+
+#[tauri::command]
+pub fn verify_pin(state: State<AppState>, pin: String) -> AppResult<bool> {
+    pin::verify_pin(&state.0.lock().unwrap(), &pin)
+}
+
+#[tauri::command]
+pub fn remove_pin(state: State<AppState>, pin: String) -> AppResult<()> {
+    pin::remove_pin(&mut state.0.lock().unwrap(), &pin)
+}
+
+#[tauri::command]
+pub fn reset_pin(state: State<AppState>, input: ResetPinInput) -> AppResult<String> {
+    pin::reset_pin(&mut state.0.lock().unwrap(), input)
 }

@@ -205,6 +205,7 @@ fn build(conn: &mut Connection) -> AppResult<()> {
                     staff_ids: bakers.clone(),
                     produced_at: at(conn, d, "06:30")?,
                     note: None,
+                    ..Default::default()
                 },
             )?;
         }

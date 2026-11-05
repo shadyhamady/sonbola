@@ -29,6 +29,7 @@ pub fn get_settings(conn: &Connection) -> AppResult<Settings> {
         default_baker_id: id("default_baker_id"),
         is_configured: m.contains_key("currency_symbol"),
         is_demo: m.contains_key("demo_data"),
+        pin_enabled: m.contains_key("pin_hash"),
     })
 }
 

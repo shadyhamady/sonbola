@@ -4,6 +4,7 @@ pub mod demo;
 pub mod diesel;
 pub mod expenses;
 pub mod inventory;
+pub mod pin;
 pub mod production;
 pub mod purchases;
 pub mod reports;
@@ -245,7 +246,7 @@ pub mod testutil {
         let at = local_ms(conn, at);
         production::record_production(
             conn,
-            RecordProductionInput { product_id, units, staff_ids, produced_at: at, note: None },
+            RecordProductionInput { product_id, units, staff_ids, produced_at: at, note: None, ..Default::default() },
         )
         .unwrap()
     }

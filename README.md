@@ -47,3 +47,12 @@ Schema migrations are in `src-tauri/migrations/` and run on startup (`PRAGMA use
 - **الإعدادات → النسخ الاحتياطي**: *تصدير* writes all data to one `.sonbola` file (a SQLite snapshot); *استيراد*
   replaces the current data with a chosen file (also offered on the first-run screen). Before every import the current data is
   saved to `backups/before-import-<time>.sonbola` in the app data folder.
+
+## Management PIN and production units
+
+- **الإعدادات → رمز دخول الإدارة** protects the management area with a 4–8 digit PIN (the POS stays open). Activating it
+  shows a one-time **recovery code**; since the app is offline, that code is the only way to reset a forgotten PIN
+  («نسيت الرمز؟» on the PIN prompt), and each reset issues a new code. The PIN and code are stored as salted hashes; this is a
+  screen lock, not encryption of the database file. Clearing demo data keeps the PIN.
+- **الإنتاج** can be entered in pieces, batches or kg. For kg the weight is converted to pieces through the product recipe
+  (full dough weight, or the weight of one chosen ingredient such as flour); the history shows both.

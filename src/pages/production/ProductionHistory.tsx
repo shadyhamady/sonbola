@@ -48,7 +48,14 @@ export function ProductionHistory() {
                 <Table.Tr key={r.id}>
                   <Table.Td>{formatDateTime(r.producedAt)}</Table.Td>
                   <Table.Td>{r.productName}</Table.Td>
-                  <Table.Td>{formatQty(r.units)}</Table.Td>
+                  <Table.Td>
+                    {formatQty(r.units)}
+                    {r.inputUnit && r.inputQty != null && (
+                      <Text size="xs" c="dimmed">
+                        {formatQty(r.inputQty)} {r.inputUnit === 'kg' ? 'كغ' : 'دفعة'}
+                      </Text>
+                    )}
+                  </Table.Td>
                   <Table.Td>{fmt(r.ingredientCostMilli)}</Table.Td>
                   <Table.Td>{fmt(r.laborCostMilli)}</Table.Td>
                   <Table.Td>{fmt(r.overheadMilli)}</Table.Td>
