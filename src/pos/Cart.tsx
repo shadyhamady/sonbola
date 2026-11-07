@@ -17,9 +17,11 @@ import {
 import { modals } from '@mantine/modals';
 import { IconArrowBackUp, IconMinus, IconPlus, IconReceipt, IconShoppingCart, IconTrash } from '@tabler/icons-react';
 import { voidSale } from '../api';
-import type { Product, Sale } from '../api/types';
+import { UNIT_LABELS, formatUnitQty, isCountUnit } from '../api/labels';
+import type { Product, Sale, Unit } from '../api/types';
 import { useOpenShift } from '../components/PaymentFields';
 import { formatTime } from '../lib/dates';
+import { formatQty } from '../lib/money';
 import { useMutate } from '../lib/useMutate';
 import { useMoney } from '../lib/useSettings';
 
@@ -60,7 +62,8 @@ export function Cart({
   const byId = new Map(products.map((p) => [p.id, p]));
   const lines = [...cart].flatMap(([productId, qty]) => {
     const product = byId.get(productId);
-    return product ? [{ product, qty, totalMilli: product.priceMilli * qty }] : [];
+    // Each line rounds to whole milli, matching the backend.
+    return product ? [{ product, qty, totalMilli: Math.round(product.priceMilli * qty) }] : [];
   });
   // Voiding is only allowed while the sale's shift is still open.
   const voidable = lastSale && openShift && lastSale.shiftId === openShift.id ? lastSale : null;
@@ -119,7 +122,7 @@ export function Cart({
                         {product.name}
                       </Text>
                       <Text size="sm" c="dimmed">
-                        {fmt(product.priceMilli)}
+                        {isCountUnit(product.unit) ? fmt(product.priceMilli) : `${fmt(product.priceMilli)} / ${UNIT_LABELS[product.unit]}`}
                       </Text>
                     </div>
                   </Group>
@@ -138,7 +141,7 @@ export function Cart({
                     <ActionIcon size={44} variant="white" bd="1px solid #ececf1" onClick={() => onSetQty(product.id, qty - 1)} aria-label="إنقاص">
                       <IconMinus size={20} />
                     </ActionIcon>
-                    <QtyField name={product.name} qty={qty} onCommit={(n) => onSetQty(product.id, n)} />
+                    <QtyField name={product.name} qty={qty} unit={product.unit} onCommit={(n) => onSetQty(product.id, n)} />
                     <ActionIcon size={44} variant="white" bd="1px solid #ececf1" onClick={() => onSetQty(product.id, qty + 1)} aria-label="زيادة">
                       <IconPlus size={20} />
                     </ActionIcon>
@@ -207,29 +210,39 @@ export function Cart({
 }
 
 /** Quantity shown as a number; clicking it switches to a typed input that commits on Enter or blur. */
-function QtyField({ name, qty, onCommit }: { name: string; qty: number; onCommit: (qty: number) => void }) {
+function QtyField({ name, qty, unit, onCommit }: { name: string; qty: number; unit: Unit; onCommit: (qty: number) => void }) {
   const [draft, setDraft] = useState<number | string | null>(null);
+  const countUnit = isCountUnit(unit);
 
   if (draft === null) {
     return (
       <UnstyledButton
         onClick={() => setDraft(qty)}
-        aria-label={`كمية ${name}: ${qty}، اضغط للتعديل`}
+        aria-label={`كمية ${name}: ${formatUnitQty(qty, unit)}، اضغط للتعديل`}
         miw={44}
         mih={44}
         px={4}
         style={{ borderRadius: 'var(--mantine-radius-sm)', textAlign: 'center' }}
       >
         <Text fw={700} size="xl" span>
-          {qty}
+          {formatQty(qty)}
         </Text>
+        {unit !== 'pcs' && (
+          <Text size="xs" c="dimmed" span>
+            {' '}
+            {UNIT_LABELS[unit]}
+          </Text>
+        )}
       </UnstyledButton>
     );
   }
 
   const commit = () => {
     const n = Number(draft);
-    if (Number.isInteger(n) && n >= 1 && n !== qty) onCommit(n);
+    // Count units take whole quantities from 1; weight/volume units any positive amount to 3 decimals.
+    const next = countUnit ? n : Math.round(n * 1000) / 1000;
+    const valid = countUnit ? Number.isInteger(n) && n >= 1 : Number.isFinite(next) && next > 0;
+    if (valid && next !== qty) onCommit(next);
     setDraft(null);
   };
 
@@ -249,13 +262,14 @@ function QtyField({ name, qty, onCommit }: { name: string; qty: number; onCommit
           setDraft(null);
         }
       }}
-      min={1}
-      allowDecimal={false}
+      min={countUnit ? 1 : undefined}
+      allowDecimal={!countUnit}
+      decimalScale={3}
       allowNegative={false}
       hideControls
       size="md"
-      w={64}
-      aria-label={`كمية ${name}`}
+      w={countUnit ? 64 : 84}
+      aria-label={`كمية ${name} (${UNIT_LABELS[unit]})`}
       styles={{ input: { textAlign: 'center', fontWeight: 700 } }}
     />
   );

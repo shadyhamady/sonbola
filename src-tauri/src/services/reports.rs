@@ -65,20 +65,30 @@ pub fn period_report(conn: &Connection, range: Range) -> AppResult<PeriodReport>
     )?;
     let avg_daily_sales_milli = if sales_days > 0 { round(sales_milli as f64 / sales_days as f64) } else { 0 };
 
-    let (production_ingredient_cost_milli, units_produced): (i64, i64) = conn.query_row(
-        "SELECT COALESCE(SUM(ingredient_cost_milli),0), COALESCE(SUM(units),0)
-         FROM productions WHERE produced_at >= ?1 AND produced_at < ?2",
+    let production_ingredient_cost_milli = scalar_i64(
+        conn,
+        "SELECT COALESCE(SUM(ingredient_cost_milli),0) FROM productions WHERE produced_at >= ?1 AND produced_at < ?2",
         params![from, to],
-        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
+    let units_produced: Vec<UnitQty> = {
+        let mut stmt = conn.prepare(
+            "SELECT p.unit, SUM(pr.units) FROM productions pr JOIN products p ON p.id = pr.product_id
+             WHERE pr.produced_at >= ?1 AND pr.produced_at < ?2 GROUP BY p.unit ORDER BY p.unit",
+        )?;
+        stmt.query_map(params![from, to], |r| Ok(UnitQty { unit: r.get(0)?, qty: r.get(1)? }))?
+            .collect::<Result<_, _>>()?
+    };
     let (diesel_liters_used, diesel_cost_used_milli): (f64, i64) = conn.query_row(
         "SELECT COALESCE(SUM(liters_used),0), COALESCE(SUM(cost_milli),0)
          FROM diesel_logs WHERE log_date >= ?1 AND log_date < ?2",
         params![dfrom, dto],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    let diesel_cost_per_item_milli =
-        if units_produced > 0 { round(diesel_cost_used_milli as f64 / units_produced as f64) } else { 0 };
+    // Per unit only when the period's production shares one unit; pieces and kg can't be added up.
+    let diesel_cost_per_unit_milli = match units_produced.as_slice() {
+        [only] if only.qty > 0.0 => Some(round(diesel_cost_used_milli as f64 / only.qty)),
+        _ => None,
+    };
     let stock_written_off_milli = -scalar_i64(
         conn,
         "SELECT COALESCE(SUM(value_milli),0) FROM stock_adjustments
@@ -126,20 +136,22 @@ pub fn period_report(conn: &Connection, range: Range) -> AppResult<PeriodReport>
 
     let product_profit: Vec<ProductProfit> = {
         let mut stmt = conn.prepare(
-            "SELECT si.product_id, p.name, SUM(si.qty), SUM(si.line_total_milli), SUM(si.qty * si.unit_cost_milli),
-                    SUM(si.qty * si.unit_overhead_milli) AS overhead
+            "SELECT si.product_id, p.name, SUM(si.qty), p.unit, SUM(si.line_total_milli),
+                    CAST(ROUND(SUM(si.qty * si.unit_cost_milli)) AS INTEGER),
+                    CAST(ROUND(SUM(si.qty * si.unit_overhead_milli)) AS INTEGER)
              FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN products p ON p.id = si.product_id
              WHERE s.voided_at IS NULL AND s.created_at >= ?1 AND s.created_at < ?2
              GROUP BY si.product_id ORDER BY SUM(si.line_total_milli) DESC",
         )?;
         stmt.query_map(params![from, to], |r| {
-            let revenue: i64 = r.get(3)?;
-            let cogs: i64 = r.get(4)?;
-            let overhead: i64 = r.get(5)?;
+            let revenue: i64 = r.get(4)?;
+            let cogs: i64 = r.get(5)?;
+            let overhead: i64 = r.get(6)?;
             Ok(ProductProfit {
                 product_id: r.get(0)?,
                 name: r.get(1)?,
                 qty: r.get(2)?,
+                unit: r.get(3)?,
                 revenue_milli: revenue,
                 cogs_milli: cogs,
                 gross_milli: revenue - cogs,
@@ -167,7 +179,7 @@ pub fn period_report(conn: &Connection, range: Range) -> AppResult<PeriodReport>
         units_produced,
         diesel_liters_used,
         diesel_cost_used_milli,
-        diesel_cost_per_item_milli,
+        diesel_cost_per_unit_milli,
         stock_written_off_milli,
         baker_pay_earned_milli,
         expenses_by_category,
@@ -229,12 +241,18 @@ pub fn dashboard_snapshot(conn: &Connection) -> AppResult<Snapshot> {
 
     let low_stock_products: Vec<LowStockProduct> = {
         let mut stmt = conn.prepare(
-            "SELECT id, name, stock_qty, low_stock_qty FROM products
+            "SELECT id, name, unit, stock_qty, low_stock_qty FROM products
              WHERE archived = 0 AND ((stock_qty <= low_stock_qty AND low_stock_qty > 0) OR stock_qty < 0)
              ORDER BY name",
         )?;
         stmt.query_map([], |r| {
-            Ok(LowStockProduct { id: r.get(0)?, name: r.get(1)?, stock_qty: r.get(2)?, low_stock_qty: r.get(3)? })
+            Ok(LowStockProduct {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                unit: r.get(2)?,
+                stock_qty: r.get(3)?,
+                low_stock_qty: r.get(4)?,
+            })
         })?
         .collect::<Result<_, _>>()?
     };
@@ -302,7 +320,7 @@ mod tests {
         let mut c = conn();
         let f = fixture(&mut c);
         purchase(&mut c, "ديزل", 100.0, 2000, "2025-03-01 09:00");
-        produce(&mut c, f.product_id, 30, vec![f.ahmad, f.salem], "2025-03-02 08:00");
+        produce(&mut c, f.product_id, 30.0, vec![f.ahmad, f.salem], "2025-03-02 08:00");
         sales::create_daily_sale(
             &c,
             DailySaleInput {
@@ -366,7 +384,7 @@ mod tests {
         diesel::create_diesel_log(&mut c, log("2025-03-01", 100.0)).unwrap();
         diesel::create_diesel_log(&mut c, log("2025-03-02", 70.0)).unwrap();
         shifts::open_shift(&c, OpenShiftInput { opening_cash_milli: 0 }).unwrap();
-        sales::create_sale(&mut c, SaleInput { items: vec![CartLine { product_id: f.product_id, qty: 3 }] }).unwrap();
+        sales::create_sale(&mut c, SaleInput { items: vec![CartLine { product_id: f.product_id, qty: 3.0 }] }).unwrap();
 
         let r = period_report(&c, Range::all()).unwrap();
         assert_eq!(r.sales_milli, 12000);
@@ -379,15 +397,15 @@ mod tests {
         assert_eq!(r.net_profit_milli, -321000);
         assert_eq!(r.profit_margin, -26.75);
         assert_eq!(r.production_ingredient_cost_milli, 18000);
-        assert_eq!(r.units_produced, 30);
-        assert_eq!((r.diesel_liters_used, r.diesel_cost_used_milli, r.diesel_cost_per_item_milli), (30.0, 60000, 2000));
+        assert_eq!(r.units_produced, vec![UnitQty { unit: "pcs".into(), qty: 30.0 }]);
+        assert_eq!((r.diesel_liters_used, r.diesel_cost_used_milli, r.diesel_cost_per_unit_milli), (30.0, 60000, Some(2000)));
         assert_eq!(r.stock_written_off_milli, 1350);
         assert_eq!(r.baker_pay_earned_milli, 2250);
         assert_eq!(r.avg_daily_sales_milli, 6000);
         let pp = &r.product_profit[0];
         assert_eq!(
             (pp.name.as_str(), pp.qty, pp.revenue_milli, pp.cogs_milli, pp.gross_milli, pp.overhead_milli, pp.after_overhead_milli),
-            ("خبز عربي", 3, 6000, 2025, 3975, 300, 3675)
+            ("خبز عربي", 3.0, 6000, 2025, 3975, 300, 3675)
         );
         assert_eq!(r.expenses_by_category[0].category_name, "كهرباء");
         assert_eq!(r.sales_by_day.len(), 2);
@@ -414,7 +432,7 @@ mod tests {
     fn snapshot() {
         let mut c = conn();
         let f = fixture(&mut c);
-        produce(&mut c, f.product_id, 30, vec![f.ahmad, f.salem], "2025-03-02 08:00");
+        produce(&mut c, f.product_id, 30.0, vec![f.ahmad, f.salem], "2025-03-02 08:00");
         staff::create_payroll_payment(
             &c,
             PayrollInput {

@@ -10,7 +10,7 @@ import {
   setStaffRate,
   staffStatement,
 } from '../../api';
-import { PAY_BASIS_UNIT, PAY_MODE_LABELS, PAY_TYPE_LABELS } from '../../api/labels';
+import { PAY_TYPE_LABELS, payBasisUnit, payModeLabel } from '../../api/labels';
 import type { Staff, StaffRate } from '../../api/types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { RangePicker, useRange } from '../../components/RangePicker';
@@ -227,7 +227,7 @@ function StatementTab({ staff }: { staff: Staff }) {
                 <Table.Td>{formatDate(e.producedAt)}</Table.Td>
                 <Table.Td>{e.productName}</Table.Td>
                 <Table.Td>
-                  {e.payMode === 'none' ? '—' : `${formatQty(e.basisQty)} ${PAY_BASIS_UNIT[e.payMode]}`}
+                  {e.payMode === 'none' ? '—' : `${formatQty(e.basisQty)} ${payBasisUnit(e.payMode, e.productUnit)}`}
                 </Table.Td>
                 <Table.Td>{fmt(e.rateMilli)}</Table.Td>
                 <Table.Td>{fmt(e.amountMilli)}</Table.Td>
@@ -283,7 +283,7 @@ function RatesTab({ staff }: { staff: Staff }) {
             {rates.map((r) => (
               <Table.Tr key={r.productId}>
                 <Table.Td>{r.productName}</Table.Td>
-                <Table.Td>{PAY_MODE_LABELS[r.payMode]}</Table.Td>
+                <Table.Td>{payModeLabel(r.payMode, r.productUnit)}</Table.Td>
                 <Table.Td>{fmt(r.defaultRateMilli)}</Table.Td>
                 <Table.Td>
                   <OverrideInput staffId={staff.id} rate={r} placeholder={fmt(r.defaultRateMilli)} />

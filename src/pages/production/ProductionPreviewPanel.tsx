@@ -1,17 +1,17 @@
 import { Alert, Badge, Group, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
-import { PAY_BASIS_UNIT, UNIT_LABELS } from '../../api/labels';
+import { UNIT_LABELS, formatUnitQty, payBasisUnit } from '../../api/labels';
 import type { ProductionPreview } from '../../api/types';
 import { formatQty } from '../../lib/money';
 import { useMoney } from '../../lib/useSettings';
 
 export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview }) {
   const { fmt } = useMoney();
-  const shareUnit = PAY_BASIS_UNIT[preview.payMode];
+  const shareUnit = payBasisUnit(preview.payMode, preview.productUnit);
 
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        عدد القطع: {formatQty(preview.units)} • عدد الدفعات: {formatQty(preview.batches)}
+        الكمية: {formatUnitQty(preview.units, preview.productUnit)} • عدد الدفعات: {formatQty(preview.batches)}
       </Text>
 
       {preview.ingredients.length === 0 ? (
@@ -98,7 +98,7 @@ export function ProductionPreviewPanel({ preview }: { preview: ProductionPreview
           <Total label="أجر الخبازين" value={fmt(preview.laborCostMilli)} />
           <Total label="التشغيل" value={fmt(preview.overheadMilli)} />
           <Total label="الإجمالي" value={fmt(preview.totalCostMilli)} bold />
-          <Total label="تكلفة القطعة" value={fmt(preview.unitCostMilli)} bold />
+          <Total label={`تكلفة ${UNIT_LABELS[preview.productUnit]}`} value={fmt(preview.unitCostMilli)} bold />
         </SimpleGrid>
       </Paper>
     </Stack>

@@ -3,8 +3,9 @@ import { ActionIcon, Badge, Button, Chip, Group, Stack, Switch, Table, Text, Tit
 import { IconArchive, IconArchiveOff, IconCategory, IconPencil, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listProductCategories, listProducts, setProductArchived } from '../api';
+import { UNIT_LABELS, formatUnitQty } from '../api/labels';
 import type { Product } from '../api/types';
-import { formatPct, formatQty } from '../lib/money';
+import { formatPct } from '../lib/money';
 import { useMutate } from '../lib/useMutate';
 import { useMoney } from '../lib/useSettings';
 import { CategoriesModal } from './products/CategoriesModal';
@@ -70,7 +71,7 @@ export function ProductsPage() {
               <Table.Th>الفئة</Table.Th>
               <Table.Th>السعر</Table.Th>
               <Table.Th>المخزون</Table.Th>
-              <Table.Th>تكلفة القطعة</Table.Th>
+              <Table.Th>تكلفة الوحدة</Table.Th>
               <Table.Th>الهامش</Table.Th>
               <Table.Th>الوصفة</Table.Th>
               <Table.Th>الكمية المنتجة</Table.Th>
@@ -102,10 +103,10 @@ export function ProductsPage() {
                         بدون سعر
                       </Badge>
                     ) : (
-                      fmt(p.priceMilli)
+                      `${fmt(p.priceMilli)} / ${UNIT_LABELS[p.unit]}`
                     )}
                   </Table.Td>
-                  <Table.Td c={p.stockQty < 0 ? 'red.8' : undefined}>{formatQty(p.stockQty)}</Table.Td>
+                  <Table.Td c={p.stockQty < 0 ? 'red.8' : undefined}>{formatUnitQty(p.stockQty, p.unit)}</Table.Td>
                   <Table.Td>
                     <Text fw={600} size="sm">
                       {fmt(p.fullUnitCostMilli)}
@@ -132,7 +133,7 @@ export function ProductsPage() {
                       p.recipeLineCount
                     )}
                   </Table.Td>
-                  <Table.Td>{formatQty(p.producedUnits)}</Table.Td>
+                  <Table.Td>{formatUnitQty(p.producedUnits, p.unit)}</Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4} wrap="nowrap">
                       <Tooltip label="تعديل">

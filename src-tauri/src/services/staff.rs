@@ -97,7 +97,7 @@ pub fn set_staff_archived(conn: &Connection, id: i64, archived: bool) -> AppResu
 
 pub fn list_staff_rates(conn: &Connection, staff_id: i64) -> AppResult<Vec<StaffRate>> {
     let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.pay_mode, p.pay_rate_milli, r.rate_milli
+        "SELECT p.id, p.name, p.pay_mode, p.unit, p.pay_rate_milli, r.rate_milli
          FROM products p LEFT JOIN staff_product_rates r ON r.product_id = p.id AND r.staff_id = ?1
          WHERE p.archived = 0 AND p.pay_mode <> 'none' ORDER BY p.name",
     )?;
@@ -106,8 +106,9 @@ pub fn list_staff_rates(conn: &Connection, staff_id: i64) -> AppResult<Vec<Staff
             product_id: r.get(0)?,
             product_name: r.get(1)?,
             pay_mode: r.get(2)?,
-            default_rate_milli: r.get(3)?,
-            override_rate_milli: r.get(4)?,
+            product_unit: r.get(3)?,
+            default_rate_milli: r.get(4)?,
+            override_rate_milli: r.get(5)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -217,7 +218,7 @@ pub fn list_payroll_payments(conn: &Connection, filter: PayrollFilter) -> AppRes
 
 pub fn staff_statement(conn: &Connection, input: StatementInput) -> AppResult<StaffStatement> {
     let mut stmt = conn.prepare(
-        "SELECT pr.id, pr.produced_at, p.name, p.pay_mode, w.basis_qty, w.rate_milli, w.amount_milli
+        "SELECT pr.id, pr.produced_at, p.name, p.pay_mode, p.unit, w.basis_qty, w.rate_milli, w.amount_milli
          FROM production_workers w
          JOIN productions pr ON pr.id = w.production_id
          JOIN products p ON p.id = pr.product_id
@@ -231,9 +232,10 @@ pub fn staff_statement(conn: &Connection, input: StatementInput) -> AppResult<St
                 produced_at: r.get(1)?,
                 product_name: r.get(2)?,
                 pay_mode: r.get(3)?,
-                basis_qty: r.get(4)?,
-                rate_milli: r.get(5)?,
-                amount_milli: r.get(6)?,
+                product_unit: r.get(4)?,
+                basis_qty: r.get(5)?,
+                rate_milli: r.get(6)?,
+                amount_milli: r.get(7)?,
             })
         })?
         .collect::<Result<_, _>>()?;
@@ -255,7 +257,7 @@ mod tests {
     fn owed_and_statement() {
         let mut c = conn();
         let f = fixture(&mut c);
-        produce(&mut c, f.product_id, 30, vec![f.ahmad, f.salem], "2025-03-02 08:00");
+        produce(&mut c, f.product_id, 30.0, vec![f.ahmad, f.salem], "2025-03-02 08:00");
         let pay = PayrollInput {
             staff_id: f.ahmad,
             paid_at: 1,

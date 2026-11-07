@@ -48,17 +48,20 @@ export function PosScreen({ session, onAdmin }: { session: PosSession; onAdmin: 
   const searchRef = useRef<HTMLInputElement>(null);
 
   const setQty = (productId: number, qty: number) => {
+    // Weight/volume quantities step by 1 from a fractional start; keep 3 decimals so float sums stay exact.
+    const q = Math.round(qty * 1000) / 1000;
     setClearedCart(null);
     setCart((prev) => {
       const next = new Map(prev);
-      if (qty <= 0) next.delete(productId);
-      else next.set(productId, qty);
+      if (q <= 0) next.delete(productId);
+      else next.set(productId, q);
       return next;
     });
   };
 
   const byId = new Map(products.map((p) => [p.id, p]));
-  const totalMilli = [...cart].reduce((sum, [id, qty]) => sum + (byId.get(id)?.priceMilli ?? 0) * qty, 0);
+  // Each line rounds to whole milli, matching the backend.
+  const totalMilli = [...cart].reduce((sum, [id, qty]) => sum + Math.round((byId.get(id)?.priceMilli ?? 0) * qty), 0);
   const canCheckout = [...cart.keys()].some((id) => byId.has(id)) && !!openShift;
   const checkout = () => {
     if (canCheckout && !sale.isPending) sale.mutate({ items: [...cart].map(([productId, qty]) => ({ productId, qty })) });

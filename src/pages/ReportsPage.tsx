@@ -4,6 +4,7 @@ import { DonutChart, LineChart } from '@mantine/charts';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { monthlySummary, periodReport } from '../api';
+import { UNIT_LABELS, formatUnitQty } from '../api/labels';
 import type { MonthRow } from '../api/types';
 import { useRange, RangePicker } from '../components/RangePicker';
 import { formatPct, formatQty, fromMilli, toMilli } from '../lib/money';
@@ -63,6 +64,8 @@ function PeriodReportTab() {
   const sum = (key: 'qty' | 'revenueMilli' | 'cogsMilli' | 'grossMilli' | 'overheadMilli' | 'afterOverheadMilli') =>
     profit.reduce((s, p) => s + p[key], 0);
   const withDonut = (r?.expensesByCategory.length ?? 0) > 1;
+  const sharedProfitUnit = profit.length > 0 && profit.every((p) => p.unit === profit[0].unit) ? profit[0].unit : null;
+  const dieselUnit = r?.unitsProduced[0]?.unit;
 
   return (
     <Stack gap="lg">
@@ -94,12 +97,18 @@ function PeriodReportTab() {
               <FigureTable
                 title="الإنتاج والديزل"
                 rows={[
-                  { label: 'القطع المنتجة', value: formatQty(r.unitsProduced) },
+                  {
+                    label: 'الكمية المنتجة',
+                    value: r.unitsProduced.map((u) => formatUnitQty(u.qty, u.unit)).join(' • ') || '0',
+                  },
                   { label: 'تكلفة مكونات الإنتاج', value: fmt(r.productionIngredientCostMilli) },
                   { label: 'أجور الإنتاج المستحقة', value: fmt(r.bakerPayEarnedMilli) },
                   { label: 'الديزل المستهلك (لتر)', value: formatQty(r.dieselLitersUsed) },
                   { label: 'تكلفة الديزل المستهلك', value: fmt(r.dieselCostUsedMilli) },
-                  { label: 'تكلفة الديزل لكل قطعة', value: fmt(r.dieselCostPerItemMilli) },
+                  {
+                    label: `تكلفة الديزل لكل ${r.dieselCostPerUnitMilli != null && dieselUnit ? UNIT_LABELS[dieselUnit] : 'وحدة إنتاج'}`,
+                    value: r.dieselCostPerUnitMilli == null ? '—' : fmt(r.dieselCostPerUnitMilli),
+                  },
                   { label: 'المخزون المشطوب (هدر)', value: fmt(r.stockWrittenOffMilli) },
                 ]}
               />
@@ -205,7 +214,7 @@ function PeriodReportTab() {
                       {profit.map((p) => (
                         <Table.Tr key={p.productId}>
                           <Table.Td>{p.name}</Table.Td>
-                          <Table.Td>{formatQty(p.qty)}</Table.Td>
+                          <Table.Td>{formatUnitQty(p.qty, p.unit)}</Table.Td>
                           <Table.Td>{fmt(p.revenueMilli)}</Table.Td>
                           <Table.Td>{fmt(p.cogsMilli)}</Table.Td>
                           <Table.Td c={p.grossMilli < 0 ? 'red.8' : undefined}>{fmt(p.grossMilli)}</Table.Td>
@@ -215,7 +224,7 @@ function PeriodReportTab() {
                       ))}
                       <Table.Tr fw={700}>
                         <Table.Td>الإجمالي</Table.Td>
-                        <Table.Td>{formatQty(sum('qty'))}</Table.Td>
+                        <Table.Td>{sharedProfitUnit ? formatUnitQty(sum('qty'), sharedProfitUnit) : '—'}</Table.Td>
                         <Table.Td>{fmt(sum('revenueMilli'))}</Table.Td>
                         <Table.Td>{fmt(sum('cogsMilli'))}</Table.Td>
                         <Table.Td>{fmt(sum('grossMilli'))}</Table.Td>

@@ -8,6 +8,7 @@ use crate::error::AppError;
 static MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_production_entry_unit.sql"),
+    include_str!("../migrations/0003_product_unit.sql"),
 ];
 
 /// Number of schema migrations this build knows; a backup with a higher `user_version` is too new.

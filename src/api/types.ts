@@ -81,6 +81,8 @@ export interface Product {
   categoryId: number;
   categoryName: string;
   priceMilli: number;
+  /** Unit the product is measured, stocked, priced and sold in; every product quantity is in it. */
+  unit: Unit;
   batchYield: number;
   stockQty: number;
   avgCostMilli: number;
@@ -97,6 +99,8 @@ export interface Product {
   fullUnitCostMilli: number;
   recipeLineCount: number;
   producedUnits: number;
+  /** Productions, sales or stock adjustments reference it; its unit can no longer change. */
+  hasMovements: boolean;
 }
 
 export interface RecipeLine {
@@ -116,6 +120,7 @@ export interface ProductInput {
   name: string;
   categoryId: number;
   priceMilli: number;
+  unit: Unit;
   batchYield: number;
   lowStockQty: number;
   payMode: PayMode;
@@ -235,14 +240,15 @@ export interface StockAdjustment {
 }
 
 // ---------- production ----------
-export type ProductionEntryUnit = 'pieces' | 'batches' | 'kg';
+/** `units` = the product's own unit; `kg` = dough weight, converted through the recipe. */
+export type ProductionEntryUnit = 'units' | 'batches' | 'kg';
 
 export interface ProductionInput {
   productId: number;
-  /** Pieces; ignored (send 0) when `unit` is batches or kg. */
+  /** Quantity in the product's unit; ignored (send 0) when `unit` is batches or kg. */
   units: number;
   staffIds: number[];
-  /** How `quantity` is measured; omitted/`pieces` means `units` is the piece count. */
+  /** How `quantity` is measured; omitted/`units` means `units` is the quantity. */
   unit?: ProductionEntryUnit;
   quantity?: number;
   /** For kg: the recipe ingredient whose weight is counted; null = full dough weight. */
@@ -273,8 +279,9 @@ export interface PreviewWorker {
 
 export interface ProductionPreview {
   payMode: PayMode;
-  /** Pieces this entry produces (converted from batches / kg). */
+  /** Quantity this entry produces in the product's unit (converted from batches / kg). */
   units: number;
+  productUnit: Unit;
   batches: number;
   ingredients: PreviewIngredient[];
   workers: PreviewWorker[];
@@ -291,13 +298,14 @@ export interface ProductionRow {
   producedAt: number;
   productName: string;
   units: number;
+  productUnit: Unit;
   ingredientCostMilli: number;
   laborCostMilli: number;
   overheadMilli: number;
   workerNames: string[];
   note: string | null;
-  /** Set when entered in batches or kg; `units` is the resulting pieces. */
-  inputUnit: Exclude<ProductionEntryUnit, 'pieces'> | null;
+  /** Set when entered in batches or kg of dough; `units` is the resulting quantity in `productUnit`. */
+  inputUnit: Exclude<ProductionEntryUnit, 'units'> | null;
   inputQty: number | null;
 }
 
@@ -331,6 +339,7 @@ export interface StaffRate {
   productId: number;
   productName: string;
   payMode: PayMode;
+  productUnit: Unit;
   defaultRateMilli: number;
   overrideRateMilli: number | null;
 }
@@ -385,6 +394,7 @@ export interface Earning {
   producedAt: number;
   productName: string;
   payMode: PayMode;
+  productUnit: Unit;
   basisQty: number;
   rateMilli: number;
   amountMilli: number;
@@ -486,6 +496,7 @@ export interface SaleItem {
   productId: number;
   productName: string;
   qty: number;
+  unit: Unit;
   unitPriceMilli: number;
   unitCostMilli: number;
   unitOverheadMilli: number;
@@ -548,6 +559,7 @@ export interface ProductProfit {
   productId: number;
   name: string;
   qty: number;
+  unit: Unit;
   revenueMilli: number;
   cogsMilli: number;
   grossMilli: number;
@@ -570,15 +582,22 @@ export interface PeriodReport {
   profitMargin: number;
   avgDailySalesMilli: number;
   productionIngredientCostMilli: number;
-  unitsProduced: number;
+  /** Quantity produced per product unit (pieces and kg can't be summed). */
+  unitsProduced: UnitQty[];
   dieselLitersUsed: number;
   dieselCostUsedMilli: number;
-  dieselCostPerItemMilli: number;
+  /** Per unit of `unitsProduced[0]`; null unless the period's production shares one unit. */
+  dieselCostPerUnitMilli: number | null;
   stockWrittenOffMilli: number;
   bakerPayEarnedMilli: number;
   expensesByCategory: CategoryTotal[];
   salesByDay: DaySales[];
   productProfit: ProductProfit[];
+}
+
+export interface UnitQty {
+  unit: Unit;
+  qty: number;
 }
 
 export interface MonthRow {
@@ -609,6 +628,7 @@ export interface ShoppingItem {
 export interface LowStockProduct {
   id: number;
   name: string;
+  unit: Unit;
   stockQty: number;
   lowStockQty: number;
 }

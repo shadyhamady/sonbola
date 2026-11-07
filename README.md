@@ -48,11 +48,16 @@ Schema migrations are in `src-tauri/migrations/` and run on startup (`PRAGMA use
   replaces the current data with a chosen file (also offered on the first-run screen). Before every import the current data is
   saved to `backups/before-import-<time>.sonbola` in the app data folder.
 
-## Management PIN and production units
+## Management PIN, product units and production entry
 
 - **الإعدادات → رمز دخول الإدارة** protects the management area with a 4–8 digit PIN (the POS stays open). Activating it
   shows a one-time **recovery code**; since the app is offline, that code is the only way to reset a forgotten PIN
   («نسيت الرمز؟» on the PIN prompt), and each reset issues a new code. The PIN and code are stored as salted hashes; this is a
   screen lock, not encryption of the database file. Clearing demo data keeps the PIN.
-- **الإنتاج** can be entered in pieces, batches or kg. For kg the weight is converted to pieces through the product recipe
-  (full dough weight, or the weight of one chosen ingredient such as flour); the history shows both.
+- **Product units**: each product has a unit of measure (حبة, كغ, غ, لتر, مل, عبوة, صينية), chosen in the product form.
+  The recipe yield, price, cost, stock, low-stock level, production, POS quantity, adjustments and reports are all in that
+  unit. Count units (حبة, عبوة, صينية) take whole numbers; weight and volume units take up to 3 decimals (e.g. 0.75 كغ at
+  the POS). The unit is locked once the product has a production, sale or stock adjustment.
+- **الإنتاج** can be entered in the product's unit, in batches, or as kg of dough. Dough weight is converted to the
+  product's unit through the recipe (full dough weight, or the weight of one chosen ingredient such as flour); the history
+  shows both.

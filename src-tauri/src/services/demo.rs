@@ -7,23 +7,39 @@ use rusqlite::{Connection, params};
 
 use crate::error::{AppResult, invalid};
 use crate::models::*;
-use crate::services::{backup, catalog, diesel, expenses, production, purchases, sales, settings, shifts, staff, suppliers};
+use crate::services::{backup, catalog, diesel, expenses, production, purchases, round_qty, sales, settings, shifts, staff, suppliers};
 
 /// Settings key marking that demo data is present.
 const FLAG: &str = "demo_data";
 /// History spans today and this many days before it.
 const DAYS: i64 = 6;
 
+/// How a demo production is entered (the production screen's three modes).
+#[derive(Clone, Copy)]
+enum Entry {
+    /// The product's own unit.
+    Units,
+    /// One batch.
+    Batch,
+    /// The recipe's full dough weight in kg.
+    Dough,
+}
+
 struct Item {
     name: &'static str,
+    unit: &'static str,
+    /// Per unit of `unit`.
     price: i64,
-    batch_yield: i64,
+    /// In `unit`, per batch.
+    batch_yield: f64,
+    low_stock: f64,
     recipe: &'static [(&'static str, f64)],
     pay_mode: &'static str,
     pay_rate: i64,
     overhead: i64,
-    /// Typical units sold per day; always below one batch so stock never goes negative.
-    daily: i64,
+    entry: Entry,
+    /// Typical quantity sold per day (in `unit`); always below one batch so stock never goes negative.
+    daily: f64,
 }
 
 /// Whole currency units to milli-units.
@@ -32,11 +48,12 @@ const fn syp(units: i64) -> i64 {
 }
 
 const ITEMS: &[Item] = &[
-    Item { name: "صمون", price: syp(5_000), batch_yield: 40, recipe: &[("دقيق", 5.0), ("خميرة", 0.1), ("ملح", 0.1)], pay_mode: "per_unit", pay_rate: syp(150), overhead: syp(5000), daily: 32 },
-    Item { name: "كرواسون", price: syp(10_000), batch_yield: 24, recipe: &[("دقيق", 2.0), ("زبدة", 1.0), ("سكر", 0.2), ("حليب", 0.5), ("خميرة", 0.05)], pay_mode: "per_unit", pay_rate: syp(400), overhead: syp(7500), daily: 18 },
-    Item { name: "كوكيز", price: syp(7_500), batch_yield: 30, recipe: &[("دقيق", 1.5), ("سكر", 0.8), ("زبدة", 0.7), ("بيض", 6.0)], pay_mode: "per_batch", pay_rate: syp(10000), overhead: syp(6000), daily: 22 },
-    Item { name: "كعك", price: syp(4_000), batch_yield: 40, recipe: &[("دقيق", 3.0), ("سمن", 0.3), ("سمسم", 0.2)], pay_mode: "per_unit", pay_rate: syp(150), overhead: syp(5000), daily: 30 },
-    Item { name: "برازق", price: syp(6_000), batch_yield: 30, recipe: &[("دقيق", 1.5), ("سمسم", 0.4), ("سكر", 0.3), ("زيت نباتي", 0.2)], pay_mode: "per_unit", pay_rate: syp(250), overhead: syp(5000), daily: 20 },
+    Item { name: "صمون", unit: "pcs", price: syp(5_000), batch_yield: 40.0, low_stock: 10.0, recipe: &[("دقيق", 5.0), ("خميرة", 0.1), ("ملح", 0.1)], pay_mode: "per_unit", pay_rate: syp(150), overhead: syp(5000), entry: Entry::Units, daily: 32.0 },
+    Item { name: "كرواسون", unit: "pcs", price: syp(10_000), batch_yield: 24.0, low_stock: 10.0, recipe: &[("دقيق", 2.0), ("زبدة", 1.0), ("سكر", 0.2), ("حليب", 0.5), ("خميرة", 0.05)], pay_mode: "per_unit", pay_rate: syp(400), overhead: syp(7500), entry: Entry::Batch, daily: 18.0 },
+    Item { name: "كوكيز", unit: "pcs", price: syp(7_500), batch_yield: 30.0, low_stock: 10.0, recipe: &[("دقيق", 1.5), ("سكر", 0.8), ("زبدة", 0.7), ("بيض", 6.0)], pay_mode: "per_batch", pay_rate: syp(10000), overhead: syp(6000), entry: Entry::Units, daily: 22.0 },
+    // Sold by weight: 3.5 kg of dough bakes into 4.5 kg; bakers are paid per kg of dough.
+    Item { name: "كعك", unit: "kg", price: syp(40_000), batch_yield: 4.5, low_stock: 1.0, recipe: &[("دقيق", 3.0), ("سمن", 0.3), ("سمسم", 0.2)], pay_mode: "per_kg", pay_rate: syp(1500), overhead: syp(5000), entry: Entry::Dough, daily: 3.6 },
+    Item { name: "برازق", unit: "pcs", price: syp(6_000), batch_yield: 30.0, low_stock: 10.0, recipe: &[("دقيق", 1.5), ("سمسم", 0.4), ("سكر", 0.3), ("زيت نباتي", 0.2)], pay_mode: "per_unit", pay_rate: syp(250), overhead: syp(5000), entry: Entry::Units, daily: 20.0 },
 ];
 
 fn id_of(conn: &Connection, table: &str, name: &str) -> AppResult<i64> {
@@ -168,8 +185,9 @@ fn build(conn: &mut Connection) -> AppResult<()> {
                 name: it.name.into(),
                 category_id,
                 price_milli: it.price,
+                unit: it.unit.into(),
                 batch_yield: it.batch_yield,
-                low_stock_qty: 10,
+                low_stock_qty: it.low_stock,
                 pay_mode: it.pay_mode.into(),
                 pay_rate_milli: it.pay_rate,
                 pay_basis_ingredient_id: None,
@@ -197,11 +215,18 @@ fn build(conn: &mut Connection) -> AppResult<()> {
     for d in (0..=DAYS).rev() {
         let bakers = if d % 2 == 1 { vec![ahmed] } else { vec![] };
         for (it, pid) in ITEMS.iter().zip(&product_ids) {
+            let (unit, units, quantity) = match it.entry {
+                Entry::Units => (None, it.batch_yield, None),
+                Entry::Batch => (Some("batches".into()), 0.0, Some(1.0)),
+                Entry::Dough => (Some("kg".into()), 0.0, Some(it.recipe.iter().map(|(_, q)| q).sum())),
+            };
             production::record_production(
                 conn,
                 RecordProductionInput {
                     product_id: *pid,
-                    units: it.batch_yield,
+                    units,
+                    unit,
+                    quantity,
                     staff_ids: bakers.clone(),
                     produced_at: at(conn, d, "06:30")?,
                     note: None,
@@ -265,19 +290,29 @@ fn run_shift(conn: &mut Connection, days_ago: i64, product_ids: &[i64]) -> AppRe
     // Three receipts per product share the day's volume 40 / 35 / 25; today only the first two.
     let receipts: &[i64] = if today { &[40, 35] } else { &[40, 35, 25] };
     let base = at(conn, days_ago, "09:00")?;
-    let mut remaining: Vec<i64> = ITEMS
+    let mut remaining: Vec<f64> = ITEMS
         .iter()
         .enumerate()
-        .map(|(pi, it)| it.daily + (days_ago * 3 + pi as i64 * 2) % 5)
+        .map(|(pi, it)| {
+            let step = if it.unit == "pcs" { 1.0 } else { 0.1 };
+            round_qty(it.unit, it.daily + ((days_ago * 3 + pi as i64 * 2) % 5) as f64 * step)
+        })
         .collect();
     let totals = remaining.clone();
     for (k, share) in receipts.iter().enumerate() {
         let last = k == receipts.len() - 1 && !today;
         let mut items = Vec::new();
         for (pi, pid) in product_ids.iter().enumerate() {
-            let qty = if last { remaining[pi] } else { totals[pi] * share / 100 };
-            remaining[pi] -= qty;
-            if qty > 0 {
+            let unit = ITEMS[pi].unit;
+            let qty = if last {
+                remaining[pi]
+            } else if unit == "pcs" {
+                (totals[pi] * *share as f64 / 100.0).floor()
+            } else {
+                round_qty(unit, totals[pi] * *share as f64 / 100.0)
+            };
+            remaining[pi] = round_qty(unit, remaining[pi] - qty);
+            if qty > 0.0 {
                 items.push(CartLine { product_id: *pid, qty });
             }
         }
@@ -335,7 +370,7 @@ mod tests {
 
         // Nothing negative: the demo must not look broken.
         for p in catalog::list_products(&c, false).unwrap() {
-            assert!(p.stock_qty >= 0, "{} stock {}", p.name, p.stock_qty);
+            assert!(p.stock_qty >= 0.0, "{} stock {}", p.name, p.stock_qty);
         }
         for i in catalog::list_ingredients(&c, false).unwrap() {
             assert!(i.stock_qty >= -1e-9, "{} stock {}", i.name, i.stock_qty);
@@ -344,7 +379,7 @@ mod tests {
         // Seven days of closed + open shifts; today's shift is open and the POS can sell.
         assert_eq!(count(&c, "shifts"), 7);
         let open = shifts::get_open_shift(&c).unwrap().expect("today's shift is open");
-        let line = CartLine { product_id: crate::services::testutil::id_of(&c, "products", "صمون"), qty: 1 };
+        let line = CartLine { product_id: crate::services::testutil::id_of(&c, "products", "صمون"), qty: 1.0 };
         let mut c = c;
         let sale = sales::create_sale(&mut c, SaleInput { items: vec![line] }).unwrap();
         assert_eq!(sale.shift_id, open.id);
@@ -356,7 +391,12 @@ mod tests {
         assert_eq!(distinct_days, 7);
 
         let r = reports::period_report(&c, Range::all()).unwrap();
-        assert!(r.sales_milli > syp(3_750_000) && r.units_produced > 1000);
+        assert!(r.sales_milli > syp(3_750_000));
+        // 7 days × one 4.5 kg batch of كعك; the rest in pieces.
+        assert_eq!(r.units_produced[0], UnitQty { unit: "kg".into(), qty: 31.5 });
+        assert!(r.units_produced[1].unit == "pcs" && r.units_produced[1].qty > 800.0);
+        let kaak = catalog::list_products(&c, false).unwrap().into_iter().find(|p| p.name == "كعك").unwrap();
+        assert!(kaak.unit == "kg" && kaak.stock_qty > 0.0 && kaak.stock_qty.fract() != 0.0);
         assert!(r.wages_milli == syp(375_000) && r.operating_expenses_milli == syp(450_000));
         let snap = reports::dashboard_snapshot(&c).unwrap();
         assert!(snap.shopping_list.iter().any(|s| s.name == "دقيق"), "flour is below its reorder level");

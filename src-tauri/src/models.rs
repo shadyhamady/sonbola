@@ -125,10 +125,12 @@ pub struct Product {
     pub category_id: i64,
     pub category_name: String,
     pub price_milli: i64,
-    pub batch_yield: i64,
-    pub stock_qty: i64,
+    /// Unit the product is measured, stocked, priced and sold in; every product quantity below is in it.
+    pub unit: String,
+    pub batch_yield: f64,
+    pub stock_qty: f64,
     pub avg_cost_milli: f64,
-    pub low_stock_qty: i64,
+    pub low_stock_qty: f64,
     pub archived: bool,
     pub pay_mode: String,
     pub pay_rate_milli: i64,
@@ -140,7 +142,9 @@ pub struct Product {
     pub direct_unit_cost_milli: i64,
     pub full_unit_cost_milli: i64,
     pub recipe_line_count: i64,
-    pub produced_units: i64,
+    pub produced_units: f64,
+    /// Whether productions, sales or stock adjustments reference the product; its unit is then fixed.
+    pub has_movements: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -166,8 +170,9 @@ pub struct ProductInput {
     pub name: String,
     pub category_id: i64,
     pub price_milli: i64,
-    pub batch_yield: i64,
-    pub low_stock_qty: i64,
+    pub unit: String,
+    pub batch_yield: f64,
+    pub low_stock_qty: f64,
     pub pay_mode: String,
     pub pay_rate_milli: i64,
     pub pay_basis_ingredient_id: Option<i64>,
@@ -312,11 +317,12 @@ pub struct StockAdjustment {
 #[serde(rename_all = "camelCase")]
 pub struct ProductionInput {
     pub product_id: i64,
-    /// Pieces produced. Used when `unit` is absent or "pieces".
+    /// Quantity in the product's unit. Used when `unit` is absent or "units".
     #[serde(default)]
-    pub units: i64,
+    pub units: f64,
     pub staff_ids: Vec<i64>,
-    /// Entry unit: "pieces" (default), "batches" or "kg". For the last two, `quantity` is converted to pieces.
+    /// Entry unit: "units" (default, the product's own unit), "batches" or "kg" of dough; the last two are
+    /// converted to the product's unit through the recipe.
     #[serde(default)]
     pub unit: Option<String>,
     #[serde(default)]
@@ -331,7 +337,7 @@ pub struct ProductionInput {
 pub struct RecordProductionInput {
     pub product_id: i64,
     #[serde(default)]
-    pub units: i64,
+    pub units: f64,
     pub staff_ids: Vec<i64>,
     #[serde(default)]
     pub unit: Option<String>,
@@ -368,8 +374,9 @@ pub struct PreviewWorker {
 #[serde(rename_all = "camelCase")]
 pub struct ProductionPreview {
     pub pay_mode: String,
-    /// Pieces this entry produces (converted from batches / kg when entered that way).
-    pub units: i64,
+    /// Quantity this entry produces in the product's unit (converted from batches / kg when entered that way).
+    pub units: f64,
+    pub product_unit: String,
     pub batches: f64,
     pub ingredients: Vec<PreviewIngredient>,
     pub workers: Vec<PreviewWorker>,
@@ -387,13 +394,14 @@ pub struct ProductionRow {
     pub id: i64,
     pub produced_at: i64,
     pub product_name: String,
-    pub units: i64,
+    pub units: f64,
+    pub product_unit: String,
     pub ingredient_cost_milli: i64,
     pub labor_cost_milli: i64,
     pub overhead_milli: i64,
     pub worker_names: Vec<String>,
     pub note: Option<String>,
-    /// "batches" or "kg" when entered that way (with `input_qty`); `None` for pieces.
+    /// "batches" or "kg" when entered that way (with `input_qty`); `None` for the product's own unit.
     pub input_unit: Option<String>,
     pub input_qty: Option<f64>,
 }
@@ -435,6 +443,7 @@ pub struct StaffRate {
     pub product_id: i64,
     pub product_name: String,
     pub pay_mode: String,
+    pub product_unit: String,
     pub default_rate_milli: i64,
     pub override_rate_milli: Option<i64>,
 }
@@ -501,6 +510,7 @@ pub struct Earning {
     pub produced_at: i64,
     pub product_name: String,
     pub pay_mode: String,
+    pub product_unit: String,
     pub basis_qty: f64,
     pub rate_milli: i64,
     pub amount_milli: i64,
@@ -627,7 +637,7 @@ pub struct CloseShiftInput {
 #[serde(rename_all = "camelCase")]
 pub struct CartLine {
     pub product_id: i64,
-    pub qty: i64,
+    pub qty: f64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -642,7 +652,8 @@ pub struct SaleItem {
     pub id: i64,
     pub product_id: i64,
     pub product_name: String,
-    pub qty: i64,
+    pub qty: f64,
+    pub unit: String,
     pub unit_price_milli: i64,
     pub unit_cost_milli: i64,
     pub unit_overhead_milli: i64,
@@ -718,7 +729,8 @@ pub struct DaySales {
 pub struct ProductProfit {
     pub product_id: i64,
     pub name: String,
-    pub qty: i64,
+    pub qty: f64,
+    pub unit: String,
     pub revenue_milli: i64,
     pub cogs_milli: i64,
     pub gross_milli: i64,
@@ -742,15 +754,24 @@ pub struct PeriodReport {
     pub profit_margin: f64,
     pub avg_daily_sales_milli: i64,
     pub production_ingredient_cost_milli: i64,
-    pub units_produced: i64,
+    /// Quantity produced per product unit, e.g. pieces and kg separately.
+    pub units_produced: Vec<UnitQty>,
     pub diesel_liters_used: f64,
     pub diesel_cost_used_milli: i64,
-    pub diesel_cost_per_item_milli: i64,
+    /// Diesel cost per produced unit; `None` unless everything produced in the period shares one unit.
+    pub diesel_cost_per_unit_milli: Option<i64>,
     pub stock_written_off_milli: i64,
     pub baker_pay_earned_milli: i64,
     pub expenses_by_category: Vec<CategoryTotal>,
     pub sales_by_day: Vec<DaySales>,
     pub product_profit: Vec<ProductProfit>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UnitQty {
+    pub unit: String,
+    pub qty: f64,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -787,8 +808,9 @@ pub struct ShoppingItem {
 pub struct LowStockProduct {
     pub id: i64,
     pub name: String,
-    pub stock_qty: i64,
-    pub low_stock_qty: i64,
+    pub unit: String,
+    pub stock_qty: f64,
+    pub low_stock_qty: f64,
 }
 
 #[derive(Serialize, Debug, Clone)]

@@ -23,8 +23,8 @@ import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useQuery } from '@tanstack/react-query';
 import { getRecipe, listIngredients, listProductCategories, periodReport, saveProduct } from '../../api';
-import { PAY_MODE_LABELS, UNIT_LABELS, toOptions } from '../../api/labels';
-import type { Ingredient, PayMode, Product, RecipeLine } from '../../api/types';
+import { UNIT_LABELS, isCountUnit, payModeLabel, toOptions } from '../../api/labels';
+import type { Ingredient, PayMode, Product, RecipeLine, Unit } from '../../api/types';
 import { MoneyInput } from '../../components/MoneyInput';
 import { estimateUnitCosts, weightKg } from '../../lib/costing';
 import { monthRange } from '../../lib/dates';
@@ -35,12 +35,15 @@ import { useMoney } from '../../lib/useSettings';
 /** Select value standing for `payBasisIngredientId = null` (the full dough weight). */
 const FULL_DOUGH = 'full';
 
-const RATE_LABELS: Record<PayMode, string> = {
-  none: '',
-  per_unit: 'الأجر لكل قطعة',
-  per_kg: 'الأجر لكل كغ',
-  per_batch: 'الأجر لكل دفعة',
-};
+const PAY_MODES: PayMode[] = ['none', 'per_unit', 'per_kg', 'per_batch'];
+
+const rateLabel = (mode: PayMode, unit: Unit) =>
+  ({
+    none: '',
+    per_unit: `الأجر لكل ${UNIT_LABELS[unit]}`,
+    per_kg: 'الأجر لكل كغ',
+    per_batch: 'الأجر لكل دفعة',
+  })[mode];
 
 interface RecipeRow {
   key: string;
@@ -51,6 +54,7 @@ interface RecipeRow {
 interface FormValues {
   name: string;
   categoryId: string | null;
+  unit: Unit;
   price: number | string;
   lowStockQty: number | string;
   batchYield: number | string;
@@ -130,6 +134,7 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
     initialValues: {
       name: product?.name ?? '',
       categoryId: product ? String(product.categoryId) : defaultCategoryId != null ? String(defaultCategoryId) : null,
+      unit: product?.unit ?? 'pcs',
       price: product ? fromMilli(product.priceMilli) : '',
       lowStockQty: product?.lowStockQty ?? 0,
       batchYield: product?.batchYield ?? 1,
@@ -142,8 +147,16 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
     validate: {
       name: (v) => (v.trim() ? null : 'أدخل اسم المنتج'),
       categoryId: (v) => (v ? null : 'اختر الفئة'),
-      batchYield: (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 ? null : 'أدخل عدداً صحيحاً أكبر من صفر'),
-      lowStockQty: (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 ? null : 'أدخل عدداً صحيحاً'),
+      batchYield: (v, values) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 1) return 'يجب أن تكون كمية الوصفة 1 أو أكثر';
+        return isCountUnit(values.unit) && !Number.isInteger(n) ? 'أدخل عدداً صحيحاً' : null;
+      },
+      lowStockQty: (v, values) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0) return 'أدخل كمية صفر أو أكثر';
+        return isCountUnit(values.unit) && !Number.isInteger(n) ? 'أدخل عدداً صحيحاً' : null;
+      },
       payRate: (v, values) => (values.payMode === 'none' || num(v) > 0 ? null : 'أدخل أجر الخباز'),
     },
   });
@@ -156,6 +169,8 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
   const allIngredients: Ingredient[] = ingredients.data ?? [];
   const ingById = new Map(allIngredients.map((i) => [i.id, i]));
   const v = form.values;
+  const countUnit = isCountUnit(v.unit);
+  const unitLabel = UNIT_LABELS[v.unit];
 
   const recipeInput = v.recipe
     .filter((r) => r.ingredientId != null)
@@ -172,7 +187,7 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
   const payBasisIngredientId = v.payMode === 'per_kg' && v.payBasis !== FULL_DOUGH ? Number(v.payBasis) : null;
 
   const costingInput = {
-    batchYield: Math.max(1, Math.trunc(num(v.batchYield))),
+    batchYield: Math.max(1, num(v.batchYield)),
     payMode: v.payMode,
     payRateMilli: v.payMode === 'none' ? 0 : toMilli(num(v.payRate)),
     payBasisIngredientId,
@@ -183,14 +198,25 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
   const priceMilli = toMilli(num(v.price));
   const margin = priceMilli - est.full;
 
+  // Actual diesel cost per unit this month; only comparable when the month's production shares one unit.
+  const month = report.data;
+  const dieselUnit = month?.unitsProduced[0]?.unit;
+  const overheadDescription =
+    !month || !dieselUnit
+      ? undefined
+      : month.dieselCostPerUnitMilli != null
+        ? `تكلفة الديزل الفعلية لكل ${UNIT_LABELS[dieselUnit]} هذا الشهر: ${fmt(month.dieselCostPerUnitMilli)}`
+        : 'تكلفة الديزل لكل وحدة غير متاحة: إنتاج الشهر بوحدات مختلفة';
+
   const submit = form.onSubmit((values) =>
     save.mutate({
       id: product?.id ?? null,
       name: values.name.trim(),
       categoryId: Number(values.categoryId),
+      unit: values.unit,
       priceMilli,
       batchYield: costingInput.batchYield,
-      lowStockQty: Math.trunc(num(values.lowStockQty)),
+      lowStockQty: num(values.lowStockQty),
       payMode: values.payMode,
       payRateMilli: costingInput.payRateMilli,
       payBasisIngredientId,
@@ -218,12 +244,29 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
             data={(categories.data ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
             {...form.getInputProps('categoryId')}
           />
-          <MoneyInput label="سعر البيع" {...form.getInputProps('price')} />
+          <Select
+            label="وحدة القياس"
+            data={toOptions(UNIT_LABELS)}
+            allowDeselect={false}
+            disabled={!!product?.hasMovements}
+            description={
+              product?.hasMovements ? 'لا يمكن تغيير الوحدة بعد تسجيل إنتاج أو بيع أو تعديل مخزون' : undefined
+            }
+            {...form.getInputProps('unit')}
+          />
+          <MoneyInput label={`سعر البيع لكل ${unitLabel}`} {...form.getInputProps('price')} />
           <NumberInput
             label="حد انخفاض المخزون"
             min={0}
-            allowDecimal={false}
+            allowDecimal={!countUnit}
+            decimalScale={3}
             allowNegative={false}
+            rightSection={
+              <Text size="xs" c="dimmed">
+                {unitLabel}
+              </Text>
+            }
+            rightSectionWidth={48}
             {...form.getInputProps('lowStockQty')}
           />
         </SimpleGrid>
@@ -238,11 +281,12 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
           <NumberInput
             w={100}
             min={1}
-            allowDecimal={false}
+            allowDecimal={!countUnit}
+            decimalScale={3}
             allowNegative={false}
             {...form.getInputProps('batchYield')}
           />
-          <Text>قطعة</Text>
+          <Text>{unitLabel}</Text>
         </Group>
         {v.recipe.length === 0 && (
           <Text c="dimmed" size="sm">
@@ -301,10 +345,13 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
         <Title order={3} size="h4">
           أجر الخبازين
         </Title>
-        <SegmentedControl data={toOptions(PAY_MODE_LABELS)} {...form.getInputProps('payMode')} />
+        <SegmentedControl
+          data={PAY_MODES.map((mode) => ({ value: mode, label: payModeLabel(mode, v.unit) }))}
+          {...form.getInputProps('payMode')}
+        />
         {v.payMode !== 'none' && (
           <SimpleGrid cols={2}>
-            <MoneyInput label={RATE_LABELS[v.payMode]} withAsterisk {...form.getInputProps('payRate')} />
+            <MoneyInput label={rateLabel(v.payMode, v.unit)} withAsterisk {...form.getInputProps('payRate')} />
             {v.payMode === 'per_kg' && (
               <Select
                 label="أساس الوزن"
@@ -326,7 +373,7 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
         </Title>
         <MoneyInput
           label="تكلفة تشغيل تقديرية لكل دفعة"
-          description={`تكلفة الديزل الفعلية لكل قطعة هذا الشهر: ${fmt(report.data?.dieselCostPerItemMilli ?? 0)}`}
+          description={overheadDescription}
           w={320}
           {...form.getInputProps('overheadPerBatch')}
         />
@@ -334,7 +381,7 @@ function ProductForm({ product, recipe, defaultCategoryId, onDone, onCancel, dir
         {/* Live per-unit cost summary */}
         <Paper withBorder p="sm" bg="var(--mantine-color-gray-0)">
           <Text fw={600} mb="xs">
-            تكلفة القطعة الواحدة (تقديرية)
+            تكلفة الوحدة الواحدة (تقديرية)
           </Text>
           <SimpleGrid cols={5}>
             <CostCell label="المكونات" value={fmt(est.ingredient)} />

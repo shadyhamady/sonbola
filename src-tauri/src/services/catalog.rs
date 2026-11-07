@@ -5,9 +5,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::db::now_ms;
 use crate::error::{AppError, AppResult, invalid, map_unique, not_found};
 use crate::models::*;
-use crate::services::{recompute_ingredient_avg, round, weight_kg};
+use crate::services::{UNITS, fits_unit, recompute_ingredient_avg, round, weight_kg};
 
-const UNITS: &[&str] = &["kg", "g", "l", "ml", "pcs", "pack", "tray"];
 const PAY_MODES: &[&str] = &["none", "per_unit", "per_kg", "per_batch"];
 
 // ---------- ingredients ----------
@@ -197,7 +196,8 @@ pub fn pay_kg_per_batch(basis: Option<i64>, lines: &[CostLine]) -> f64 {
 }
 
 pub struct PayConfig {
-    pub batch_yield: i64,
+    pub unit: String,
+    pub batch_yield: f64,
     pub pay_mode: String,
     pub pay_rate_milli: i64,
     pub pay_basis_ingredient_id: Option<i64>,
@@ -207,17 +207,19 @@ pub struct PayConfig {
 
 pub fn pay_config(conn: &Connection, product_id: i64) -> AppResult<PayConfig> {
     conn.query_row(
-        "SELECT batch_yield, pay_mode, pay_rate_milli, pay_basis_ingredient_id, overhead_per_batch_milli, avg_cost_milli
+        "SELECT unit, batch_yield, pay_mode, pay_rate_milli, pay_basis_ingredient_id, overhead_per_batch_milli,
+                avg_cost_milli
          FROM products WHERE id = ?1",
         [product_id],
         |r| {
             Ok(PayConfig {
-                batch_yield: r.get(0)?,
-                pay_mode: r.get(1)?,
-                pay_rate_milli: r.get(2)?,
-                pay_basis_ingredient_id: r.get(3)?,
-                overhead_per_batch_milli: r.get(4)?,
-                avg_cost_milli: r.get(5)?,
+                unit: r.get(0)?,
+                batch_yield: r.get(1)?,
+                pay_mode: r.get(2)?,
+                pay_rate_milli: r.get(3)?,
+                pay_basis_ingredient_id: r.get(4)?,
+                overhead_per_batch_milli: r.get(5)?,
+                avg_cost_milli: r.get(6)?,
             })
         },
     )
@@ -227,7 +229,7 @@ pub fn pay_config(conn: &Connection, product_id: i64) -> AppResult<PayConfig> {
 pub fn unit_costs(conn: &Connection, product_id: i64) -> AppResult<UnitCosts> {
     let p = pay_config(conn, product_id)?;
     let lines = cost_lines(conn, product_id)?;
-    let y = p.batch_yield as f64;
+    let y = p.batch_yield;
     let rate = p.pay_rate_milli as f64;
     let ingredient = round(lines.iter().map(|l| l.qty * l.avg).sum::<f64>() / y);
     let labor = match p.pay_mode.as_str() {
@@ -247,17 +249,28 @@ pub fn sale_costs(conn: &Connection, product_id: i64) -> AppResult<(i64, i64)> {
     Ok((c.direct, c.overhead))
 }
 
+/// SQL expression: whether product `id`'s stock has moved (production, sale or adjustment).
+fn has_movements_sql(id: &str) -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM productions WHERE product_id = {id})
+         OR EXISTS (SELECT 1 FROM sale_items WHERE product_id = {id})
+         OR EXISTS (SELECT 1 FROM stock_adjustments WHERE item_type = 'product' AND item_id = {id})"
+    )
+}
+
 pub fn list_products(conn: &Connection, include_archived: bool) -> AppResult<Vec<Product>> {
-    let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, p.category_id, c.name, p.price_milli, p.batch_yield, p.stock_qty, p.avg_cost_milli,
+    let mut stmt = conn.prepare(&format!(
+        "SELECT p.id, p.name, p.category_id, c.name, p.price_milli, p.unit, p.batch_yield, p.stock_qty, p.avg_cost_milli,
                 p.low_stock_qty, p.archived, p.pay_mode, p.pay_rate_milli, p.pay_basis_ingredient_id,
                 p.overhead_per_batch_milli,
                 (SELECT COUNT(*) FROM recipe_items ri WHERE ri.product_id = p.id),
-                (SELECT COALESCE(SUM(units),0) FROM productions pr WHERE pr.product_id = p.id)
+                (SELECT COALESCE(SUM(units),0) FROM productions pr WHERE pr.product_id = p.id),
+                ({movements})
          FROM products p JOIN product_categories c ON c.id = p.category_id
          WHERE (?1 OR p.archived = 0)
          ORDER BY c.sort_order, c.name, p.name",
-    )?;
+        movements = has_movements_sql("p.id")
+    ))?;
     let rows = stmt.query_map([include_archived], |r| {
         Ok(Product {
             id: r.get(0)?,
@@ -265,17 +278,19 @@ pub fn list_products(conn: &Connection, include_archived: bool) -> AppResult<Vec
             category_id: r.get(2)?,
             category_name: r.get(3)?,
             price_milli: r.get(4)?,
-            batch_yield: r.get(5)?,
-            stock_qty: r.get(6)?,
-            avg_cost_milli: r.get(7)?,
-            low_stock_qty: r.get(8)?,
-            archived: r.get(9)?,
-            pay_mode: r.get(10)?,
-            pay_rate_milli: r.get(11)?,
-            pay_basis_ingredient_id: r.get(12)?,
-            overhead_per_batch_milli: r.get(13)?,
-            recipe_line_count: r.get(14)?,
-            produced_units: r.get(15)?,
+            unit: r.get(5)?,
+            batch_yield: r.get(6)?,
+            stock_qty: r.get(7)?,
+            avg_cost_milli: r.get(8)?,
+            low_stock_qty: r.get(9)?,
+            archived: r.get(10)?,
+            pay_mode: r.get(11)?,
+            pay_rate_milli: r.get(12)?,
+            pay_basis_ingredient_id: r.get(13)?,
+            overhead_per_batch_milli: r.get(14)?,
+            recipe_line_count: r.get(15)?,
+            produced_units: r.get(16)?,
+            has_movements: r.get(17)?,
             ingredient_cost_per_unit_milli: 0,
             labor_cost_per_unit_milli: 0,
             overhead_per_unit_milli: 0,
@@ -312,13 +327,19 @@ pub fn save_product(conn: &mut Connection, input: ProductInput) -> AppResult<i64
     if name.is_empty() {
         return invalid("أدخل اسم المنتج");
     }
+    if !UNITS.contains(&input.unit.as_str()) {
+        return invalid("وحدة غير صالحة");
+    }
     if input.price_milli < 0
-        || input.batch_yield < 1
+        || !(input.batch_yield >= 1.0)
         || input.overhead_per_batch_milli < 0
-        || input.low_stock_qty < 0
+        || !(input.low_stock_qty >= 0.0)
         || !PAY_MODES.contains(&input.pay_mode.as_str())
     {
         return invalid("قيمة غير صالحة");
+    }
+    if !fits_unit(&input.unit, input.batch_yield) || !fits_unit(&input.unit, input.low_stock_qty) {
+        return invalid("الكمية يجب أن تكون عدداً صحيحاً");
     }
     let mut seen = HashSet::new();
     for line in &input.recipe {
@@ -367,40 +388,49 @@ pub fn save_product(conn: &mut Connection, input: ProductInput) -> AppResult<i64
 
     let id = match input.id {
         Some(id) => {
-            let n = tx
-                .execute(
-                    "UPDATE products SET name = ?1, category_id = ?2, price_milli = ?3, batch_yield = ?4, low_stock_qty = ?5,
-                       pay_mode = ?6, pay_rate_milli = ?7, pay_basis_ingredient_id = ?8, overhead_per_batch_milli = ?9
-                     WHERE id = ?10",
-                    params![
-                        name,
-                        input.category_id,
-                        input.price_milli,
-                        input.batch_yield,
-                        input.low_stock_qty,
-                        input.pay_mode,
-                        rate,
-                        basis,
-                        input.overhead_per_batch_milli,
-                        id
-                    ],
+            let (unit, moved): (String, bool) = tx
+                .query_row(
+                    &format!("SELECT unit, {} FROM products WHERE id = ?1", has_movements_sql("?1")),
+                    [id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
                 )
-                .map_err(map_unique)?;
-            if n == 0 {
-                return Err(AppError::NotFound);
+                .map_err(not_found)?;
+            if unit != input.unit && moved {
+                return invalid("لا يمكن تغيير وحدة منتج له حركات إنتاج أو بيع أو تعديل مخزون");
             }
+            tx.execute(
+                "UPDATE products SET name = ?1, category_id = ?2, price_milli = ?3, unit = ?4, batch_yield = ?5,
+                   low_stock_qty = ?6, pay_mode = ?7, pay_rate_milli = ?8, pay_basis_ingredient_id = ?9,
+                   overhead_per_batch_milli = ?10
+                 WHERE id = ?11",
+                params![
+                    name,
+                    input.category_id,
+                    input.price_milli,
+                    input.unit,
+                    input.batch_yield,
+                    input.low_stock_qty,
+                    input.pay_mode,
+                    rate,
+                    basis,
+                    input.overhead_per_batch_milli,
+                    id
+                ],
+            )
+            .map_err(map_unique)?;
             tx.execute("DELETE FROM recipe_items WHERE product_id = ?1", [id])?;
             id
         }
         None => {
             tx.execute(
-                "INSERT INTO products (name, category_id, price_milli, batch_yield, low_stock_qty, pay_mode, pay_rate_milli,
-                   pay_basis_ingredient_id, overhead_per_batch_milli, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT INTO products (name, category_id, price_milli, unit, batch_yield, low_stock_qty, pay_mode,
+                   pay_rate_milli, pay_basis_ingredient_id, overhead_per_batch_milli, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     name,
                     input.category_id,
                     input.price_milli,
+                    input.unit,
                     input.batch_yield,
                     input.low_stock_qty,
                     input.pay_mode,
@@ -456,8 +486,9 @@ mod tests {
             name: "بيض مسلوق".into(),
             category_id: id_of(&c, "product_categories", "خبز"),
             price_milli: 1000,
-            batch_yield: 10,
-            low_stock_qty: 0,
+            unit: "pcs".into(),
+            batch_yield: 10.0,
+            low_stock_qty: 0.0,
             pay_mode: "per_kg".into(),
             pay_rate_milli: 500,
             pay_basis_ingredient_id: None,
@@ -483,6 +514,70 @@ mod tests {
         same.name = "خبز عربي".into();
         same.pay_mode = "none".into();
         assert_eq!(err(save_product(&mut c, same)), "الاسم مستخدم مسبقاً");
+    }
+
+    #[test]
+    fn product_measured_in_kg() {
+        use crate::services::{inventory, production, sales, shifts};
+        let mut c = conn();
+        fixture(&mut c); // flour avg 6000/kg, default baker set
+        let flour = id_of(&c, "ingredients", "دقيق");
+        let input = ProductInput {
+            id: None,
+            name: "كعك بالكيلو".into(),
+            category_id: id_of(&c, "product_categories", "معجنات"),
+            price_milli: 20000,
+            unit: "kg".into(),
+            batch_yield: 4.5,
+            low_stock_qty: 1.5,
+            pay_mode: "per_unit".into(),
+            pay_rate_milli: 1000,
+            pay_basis_ingredient_id: None,
+            overhead_per_batch_milli: 0,
+            recipe: vec![RecipeInput { ingredient_id: flour, qty: 3.0 }],
+        };
+        let mut pieces = input.clone();
+        pieces.unit = "pcs".into();
+        assert_eq!(err(save_product(&mut c, pieces)), "الكمية يجب أن تكون عدداً صحيحاً");
+        let id = save_product(&mut c, input.clone()).unwrap();
+
+        // Costs are per kg: 3 kg flour × 6000 / 4.5 kg + 1000 pay per kg.
+        let p = product(&c, "كعك بالكيلو");
+        assert_eq!((p.unit.as_str(), p.batch_yield, p.low_stock_qty), ("kg", 4.5, 1.5));
+        assert_eq!((p.ingredient_cost_per_unit_milli, p.full_unit_cost_milli, p.has_movements), (4000, 5000, false));
+
+        // Entered directly in kg, or as dough weight: 1 kg of dough = 1/3 batch = 1.5 kg of product.
+        let direct = ProductionInput { product_id: id, units: 2.25, ..Default::default() };
+        assert_eq!(production::preview_production(&c, direct).unwrap().units, 2.25);
+        let dough = ProductionInput { product_id: id, unit: Some("kg".into()), quantity: Some(1.0), ..Default::default() };
+        let preview = production::preview_production(&c, dough).unwrap();
+        assert_eq!((preview.units, preview.product_unit.as_str(), preview.workers[0].basis_qty), (1.5, "kg", 1.5));
+        produce(&mut c, id, 2.25, vec![], "2025-03-02 08:00");
+
+        shifts::open_shift(&c, OpenShiftInput { opening_cash_milli: 0 }).unwrap();
+        let sale = sales::create_sale(&mut c, SaleInput { items: vec![CartLine { product_id: id, qty: 0.75 }] }).unwrap();
+        assert_eq!((sale.total_milli, sale.items[0].qty, sale.items[0].unit.as_str()), (15000, 0.75, "kg"));
+        inventory::create_stock_adjustment(
+            &mut c,
+            StockAdjustmentInput {
+                item_type: "product".into(),
+                item_id: id,
+                qty_delta: -0.25,
+                reason: "waste".into(),
+                adjusted_at: 0,
+                note: None,
+            },
+        )
+        .unwrap();
+        let p = product(&c, "كعك بالكيلو");
+        assert_eq!((p.stock_qty, p.produced_units, p.has_movements), (1.25, 2.25, true));
+
+        let mut to_pieces = input;
+        to_pieces.id = Some(id);
+        to_pieces.unit = "pcs".into();
+        to_pieces.batch_yield = 5.0;
+        to_pieces.low_stock_qty = 1.0;
+        assert_eq!(err(save_product(&mut c, to_pieces)), "لا يمكن تغيير وحدة منتج له حركات إنتاج أو بيع أو تعديل مخزون");
     }
 
     #[test]

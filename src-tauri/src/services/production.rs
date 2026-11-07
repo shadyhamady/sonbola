@@ -3,14 +3,23 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::db::now_ms;
 use crate::error::{AppResult, invalid};
 use crate::models::*;
-use crate::services::catalog::{cost_lines, pay_config, pay_kg_per_batch};
-use crate::services::{opt_text, round, settings, weighted_avg};
+use crate::services::catalog::{PayConfig, cost_lines, pay_config, pay_kg_per_batch};
+use crate::services::{fits_unit, opt_text, round, round_qty, settings, weighted_avg};
 
-/// Pieces produced by an entry in pieces (default), batches or kg. For kg, the weight per batch is
-/// the basis ingredient's, or the full dough weight when no basis is given (same rule as baker pay).
-fn resolve_units(conn: &Connection, input: &ProductionInput) -> AppResult<i64> {
-    let kg = match input.unit.as_deref().unwrap_or("pieces") {
-        "pieces" => return Ok(input.units),
+/// Quantity produced, in the product's unit, by an entry in that unit (default), batches or kg of dough. For kg,
+/// the weight per batch is the basis ingredient's, or the full dough weight when no basis is given (same rule
+/// as baker pay).
+fn resolve_units(conn: &Connection, p: &PayConfig, input: &ProductionInput) -> AppResult<f64> {
+    let kg = match input.unit.as_deref().unwrap_or("units") {
+        "units" => {
+            if !(input.units > 0.0) {
+                return invalid("قيمة غير صالحة");
+            }
+            if !fits_unit(&p.unit, input.units) {
+                return invalid("الكمية يجب أن تكون عدداً صحيحاً");
+            }
+            return Ok(input.units);
+        }
         "batches" => false,
         "kg" => true,
         _ => return invalid("وحدة الإنتاج غير صالحة"),
@@ -18,7 +27,6 @@ fn resolve_units(conn: &Connection, input: &ProductionInput) -> AppResult<i64> {
     let Some(qty) = input.quantity.filter(|q| q.is_finite() && *q > 0.0) else {
         return invalid("قيمة غير صالحة");
     };
-    let p = pay_config(conn, input.product_id)?;
     let batches = if kg {
         let lines = cost_lines(conn, input.product_id)?;
         let per_batch = pay_kg_per_batch(input.basis_ingredient_id, &lines);
@@ -33,9 +41,9 @@ fn resolve_units(conn: &Connection, input: &ProductionInput) -> AppResult<i64> {
     } else {
         qty
     };
-    let units = round(batches * p.batch_yield as f64);
-    if units < 1 {
-        return invalid("الكمية أقل من قطعة واحدة");
+    let units = round_qty(&p.unit, batches * p.batch_yield);
+    if !(units > 0.0) {
+        return invalid("الكمية أقل من وحدة واحدة من المنتج");
     }
     Ok(units)
 }
@@ -43,12 +51,8 @@ fn resolve_units(conn: &Connection, input: &ProductionInput) -> AppResult<i64> {
 /// Read-only production calculation shared by preview and record.
 pub fn compute_production(conn: &Connection, input: &ProductionInput) -> AppResult<ProductionPreview> {
     let p = pay_config(conn, input.product_id)?;
-    let units_i = resolve_units(conn, input)?;
-    if units_i <= 0 {
-        return invalid("قيمة غير صالحة");
-    }
-    let units = units_i as f64;
-    let batches = units / p.batch_yield as f64;
+    let units = resolve_units(conn, &p, input)?;
+    let batches = units / p.batch_yield;
 
     let mut ingredients = Vec::new();
     {
@@ -137,7 +141,8 @@ pub fn compute_production(conn: &Connection, input: &ProductionInput) -> AppResu
     let total_cost_milli = ingredient_cost_milli + labor_cost_milli + overhead_milli;
     Ok(ProductionPreview {
         pay_mode: p.pay_mode,
-        units: units_i,
+        units,
+        product_unit: p.unit,
         batches,
         ingredients,
         workers,
@@ -213,12 +218,12 @@ pub fn record_production(conn: &mut Connection, input: RecordProductionInput) ->
             params![production_id, w.staff_id, w.basis_qty, w.rate_milli, w.amount_milli],
         )?;
     }
-    let (stock, avg): (i64, f64) = tx.query_row(
+    let (stock, avg): (f64, f64) = tx.query_row(
         "SELECT stock_qty, avg_cost_milli FROM products WHERE id = ?1",
         [input.product_id],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    let new_avg = weighted_avg(stock as f64, avg, units as f64, cost as f64);
+    let new_avg = weighted_avg(stock, avg, units, cost as f64);
     tx.execute(
         "UPDATE products SET avg_cost_milli = ?1, stock_qty = stock_qty + ?2 WHERE id = ?3",
         params![new_avg, units, input.product_id],
@@ -229,7 +234,7 @@ pub fn record_production(conn: &mut Connection, input: RecordProductionInput) ->
 
 pub fn list_productions(conn: &Connection, range: Range) -> AppResult<Vec<ProductionRow>> {
     let mut stmt = conn.prepare(
-        "SELECT pr.id, pr.produced_at, p.name, pr.units, pr.ingredient_cost_milli, pr.labor_cost_milli,
+        "SELECT pr.id, pr.produced_at, p.name, pr.units, p.unit, pr.ingredient_cost_milli, pr.labor_cost_milli,
                 pr.overhead_milli, pr.note, pr.input_unit, pr.input_qty
          FROM productions pr JOIN products p ON p.id = pr.product_id
          WHERE pr.produced_at >= ?1 AND pr.produced_at < ?2
@@ -241,12 +246,13 @@ pub fn list_productions(conn: &Connection, range: Range) -> AppResult<Vec<Produc
             produced_at: r.get(1)?,
             product_name: r.get(2)?,
             units: r.get(3)?,
-            ingredient_cost_milli: r.get(4)?,
-            labor_cost_milli: r.get(5)?,
-            overhead_milli: r.get(6)?,
-            note: r.get(7)?,
-            input_unit: r.get(8)?,
-            input_qty: r.get(9)?,
+            product_unit: r.get(4)?,
+            ingredient_cost_milli: r.get(5)?,
+            labor_cost_milli: r.get(6)?,
+            overhead_milli: r.get(7)?,
+            note: r.get(8)?,
+            input_unit: r.get(9)?,
+            input_qty: r.get(10)?,
             worker_names: vec![],
         })
     })?;
@@ -271,7 +277,7 @@ mod tests {
         let f = fixture(&mut c);
         let preview = preview_production(
             &c,
-            ProductionInput { product_id: f.product_id, units: 30, staff_ids: vec![f.ahmad, f.salem, f.ahmad], ..Default::default() },
+            ProductionInput { product_id: f.product_id, units: 30.0, staff_ids: vec![f.ahmad, f.salem, f.ahmad], ..Default::default() },
         )
         .unwrap();
         assert_eq!(preview.batches, 1.5);
@@ -282,21 +288,21 @@ mod tests {
         assert_eq!(preview.overhead_milli, 3000);
         assert!(!preview.used_default_baker);
 
-        produce(&mut c, f.product_id, 30, vec![f.ahmad, f.salem], "2025-03-02 08:00");
+        produce(&mut c, f.product_id, 30.0, vec![f.ahmad, f.salem], "2025-03-02 08:00");
         assert_eq!(ingredient(&c, "دقيق").stock_qty, 17.0);
         let p = product(&c, "خبز عربي");
-        assert_eq!((p.stock_qty, p.avg_cost_milli), (30, 675.0));
-        assert_eq!(p.produced_units, 30);
+        assert_eq!((p.stock_qty, p.avg_cost_milli), (30.0, 675.0));
+        assert_eq!(p.produced_units, 30.0);
 
         let cashier = id_of(&c, "staff", "كاشير");
         let bad = record_production(
             &mut c,
-            RecordProductionInput { product_id: f.product_id, units: 10, staff_ids: vec![cashier], produced_at: 0, note: None, ..Default::default() },
+            RecordProductionInput { product_id: f.product_id, units: 10.0, staff_ids: vec![cashier], produced_at: 0, note: None, ..Default::default() },
         );
         assert_eq!(err(bad), "الموظف ليس من خبازي الإنتاج");
 
         let preview =
-            preview_production(&c, ProductionInput { product_id: f.product_id, units: 20, staff_ids: vec![], ..Default::default() }).unwrap();
+            preview_production(&c, ProductionInput { product_id: f.product_id, units: 20.0, staff_ids: vec![], ..Default::default() }).unwrap();
         assert!(preview.used_default_baker);
         assert_eq!(preview.workers.len(), 1);
         assert_eq!(preview.workers[0].name, "رئيس الخبازين");
@@ -307,7 +313,7 @@ mod tests {
         settings::save_settings(&mut c, s).unwrap();
         let none = record_production(
             &mut c,
-            RecordProductionInput { product_id: f.product_id, units: 20, staff_ids: vec![], produced_at: 0, note: None, ..Default::default() },
+            RecordProductionInput { product_id: f.product_id, units: 20.0, staff_ids: vec![], produced_at: 0, note: None, ..Default::default() },
         );
         assert_eq!(err(none), "اختر خبازاً واحداً على الأقل");
 
@@ -329,10 +335,10 @@ mod tests {
         };
         // 5 kg of dough = 2.5 batches = 50 pieces, and the preview prices exactly those pieces.
         let preview = preview_production(&c, kg(5.0, None)).unwrap();
-        assert_eq!((preview.units, preview.batches), (50, 2.5));
+        assert_eq!((preview.units, preview.batches), (50.0, 2.5));
         assert_eq!(preview.ingredient_cost_milli, 30000);
         let flour = ingredient(&c, "دقيق").id;
-        assert_eq!(preview_production(&c, kg(5.0, Some(flour))).unwrap().units, 50);
+        assert_eq!(preview_production(&c, kg(5.0, Some(flour))).unwrap().units, 50.0);
 
         let batches = ProductionInput {
             product_id: f.product_id,
@@ -340,9 +346,9 @@ mod tests {
             quantity: Some(1.5),
             ..Default::default()
         };
-        assert_eq!(preview_production(&c, batches).unwrap().units, 30);
+        assert_eq!(preview_production(&c, batches).unwrap().units, 30.0);
 
-        assert_eq!(err(preview_production(&c, kg(0.01, None))), "الكمية أقل من قطعة واحدة");
+        assert_eq!(err(preview_production(&c, kg(0.01, None))), "الكمية أقل من وحدة واحدة من المنتج");
         assert_eq!(err(preview_production(&c, kg(-1.0, None))), "قيمة غير صالحة");
         let egg = ingredient(&c, "بيض").id;
         assert_eq!(err(preview_production(&c, kg(5.0, Some(egg)))), "مكوّن الأساس يجب أن يكون في الوصفة ويقاس بالوزن");
@@ -361,9 +367,9 @@ mod tests {
         )
         .unwrap();
         assert!(id > 0);
-        assert_eq!(product(&c, "خبز عربي").stock_qty, 50);
+        assert_eq!(product(&c, "خبز عربي").stock_qty, 50.0);
         assert_eq!(ingredient(&c, "دقيق").stock_qty, 15.0);
         let row = &list_productions(&c, Range::all()).unwrap()[0];
-        assert_eq!((row.units, row.input_unit.as_deref(), row.input_qty), (50, Some("kg"), Some(5.0)));
+        assert_eq!((row.units, row.input_unit.as_deref(), row.input_qty), (50.0, Some("kg"), Some(5.0)));
     }
 }

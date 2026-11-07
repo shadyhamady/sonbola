@@ -5,6 +5,7 @@ import { modals } from '@mantine/modals';
 import { IconChevronDown, IconChevronLeft } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listSales, voidSale } from '../../api';
+import { formatUnitQty } from '../../api/labels';
 import { useOpenShift } from '../../components/PaymentFields';
 import { RangePicker, useRange } from '../../components/RangePicker';
 import { formatDateTime } from '../../lib/dates';
@@ -73,7 +74,7 @@ export function PosSalesTab() {
                     </Table.Td>
                     <Table.Td>{s.id}</Table.Td>
                     <Table.Td>{formatDateTime(s.createdAt)}</Table.Td>
-                    <Table.Td>{s.items.map((i) => `${i.productName} × ${i.qty}`).join('، ')}</Table.Td>
+                    <Table.Td>{s.items.map((i) => `${i.productName} × ${formatUnitQty(i.qty, i.unit)}`).join('، ')}</Table.Td>
                     <Table.Td td={voided ? 'line-through' : undefined}>{fmt(s.totalMilli)}</Table.Td>
                     <Table.Td td={voided ? 'line-through' : undefined}>{fmt(s.totalMilli - s.costMilli)}</Table.Td>
                     <Table.Td>
@@ -127,7 +128,7 @@ export function PosSalesTab() {
                             {s.items.map((i) => (
                               <Table.Tr key={i.id}>
                                 <Table.Td>{i.productName}</Table.Td>
-                                <Table.Td>{i.qty}</Table.Td>
+                                <Table.Td>{formatUnitQty(i.qty, i.unit)}</Table.Td>
                                 <Table.Td>{fmt(i.unitPriceMilli)}</Table.Td>
                                 <Table.Td>{fmt(i.unitCostMilli)}</Table.Td>
                                 <Table.Td>{fmt(i.lineTotalMilli)}</Table.Td>

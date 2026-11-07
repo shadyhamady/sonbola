@@ -20,6 +20,8 @@ use crate::error::{AppResult, invalid};
 use crate::models::Range;
 
 pub const METHODS: &[&str] = &["cash", "card", "bank_transfer", "other"];
+/// Units of measure for ingredients and products.
+pub const UNITS: &[&str] = &["kg", "g", "l", "ml", "pcs", "pack", "tray"];
 
 /// Weighted average of existing stock and newly added stock. Negative stock counts as zero.
 pub fn weighted_avg(old_qty: f64, old_avg: f64, add_qty: f64, add_cost: f64) -> f64 {
@@ -37,6 +39,21 @@ pub fn weight_kg(unit: &str, qty: f64) -> Option<f64> {
         "g" | "ml" => Some(qty / 1000.0),
         _ => None,
     }
+}
+
+/// Count units (pieces, packs, trays) hold whole quantities; weight and volume units are fractional.
+pub fn is_count_unit(unit: &str) -> bool {
+    weight_kg(unit, 1.0).is_none()
+}
+
+/// A finite quantity that is whole when `unit` is a count unit.
+pub fn fits_unit(unit: &str, qty: f64) -> bool {
+    qty.is_finite() && (!is_count_unit(unit) || qty.fract() == 0.0)
+}
+
+/// Rounds to the unit's precision: whole for count units, grams/millilitres (3 decimals) otherwise.
+pub fn round_qty(unit: &str, qty: f64) -> f64 {
+    if is_count_unit(unit) { qty.round() } else { (qty * 1000.0).round() / 1000.0 }
 }
 
 /// SQL expression converting a unix-ms column/parameter to a local `YYYY-MM-DD` date.
@@ -225,8 +242,9 @@ pub mod testutil {
                 name: "خبز عربي".into(),
                 category_id: id_of(conn, "product_categories", "خبز"),
                 price_milli: 2000,
-                batch_yield: 20,
-                low_stock_qty: 0,
+                unit: "pcs".into(),
+                batch_yield: 20.0,
+                low_stock_qty: 0.0,
                 pay_mode: "per_kg".into(),
                 pay_rate_milli: 500,
                 pay_basis_ingredient_id: None,
@@ -242,7 +260,7 @@ pub mod testutil {
         Fixture { product_id, ahmad, salem }
     }
 
-    pub fn produce(conn: &mut Connection, product_id: i64, units: i64, staff_ids: Vec<i64>, at: &str) -> i64 {
+    pub fn produce(conn: &mut Connection, product_id: i64, units: f64, staff_ids: Vec<i64>, at: &str) -> i64 {
         let at = local_ms(conn, at);
         production::record_production(
             conn,

@@ -1,6 +1,8 @@
 import { Paper, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { listProductions } from '../../api';
+import { formatUnitQty } from '../../api/labels';
+import type { Unit } from '../../api/types';
 import { RangePicker, useRange } from '../../components/RangePicker';
 import { formatDateTime } from '../../lib/dates';
 import { formatQty } from '../../lib/money';
@@ -14,13 +16,15 @@ export function ProductionHistory() {
 
   const totals = rows.reduce(
     (t, r) => ({
-      units: t.units + r.units,
       ingredients: t.ingredients + r.ingredientCostMilli,
       labor: t.labor + r.laborCostMilli,
       overhead: t.overhead + r.overheadMilli,
     }),
-    { units: 0, ingredients: 0, labor: 0, overhead: 0 },
+    { ingredients: 0, labor: 0, overhead: 0 },
   );
+  const unitTotals = new Map<Unit, number>();
+  for (const r of rows) unitTotals.set(r.productUnit, (unitTotals.get(r.productUnit) ?? 0) + r.units);
+  const unitsTotalLabel = [...unitTotals].map(([unit, qty]) => formatUnitQty(qty, unit)).join(' • ');
 
   return (
     <Paper withBorder p="md">
@@ -49,10 +53,10 @@ export function ProductionHistory() {
                   <Table.Td>{formatDateTime(r.producedAt)}</Table.Td>
                   <Table.Td>{r.productName}</Table.Td>
                   <Table.Td>
-                    {formatQty(r.units)}
+                    {formatUnitQty(r.units, r.productUnit)}
                     {r.inputUnit && r.inputQty != null && (
                       <Text size="xs" c="dimmed">
-                        {formatQty(r.inputQty)} {r.inputUnit === 'kg' ? 'كغ' : 'دفعة'}
+                        {formatQty(r.inputQty)} {r.inputUnit === 'kg' ? 'كغ عجين' : 'دفعة'}
                       </Text>
                     )}
                   </Table.Td>
@@ -77,7 +81,7 @@ export function ProductionHistory() {
               <Table.Tfoot>
                 <Table.Tr fw={700}>
                   <Table.Td colSpan={2}>الإجمالي</Table.Td>
-                  <Table.Td>{formatQty(totals.units)}</Table.Td>
+                  <Table.Td>{unitsTotalLabel}</Table.Td>
                   <Table.Td>{fmt(totals.ingredients)}</Table.Td>
                   <Table.Td>{fmt(totals.labor)}</Table.Td>
                   <Table.Td>{fmt(totals.overhead)}</Table.Td>

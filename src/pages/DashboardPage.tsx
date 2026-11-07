@@ -13,7 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardSnapshot, periodReport, shiftSummary } from '../api';
-import { STOCK_STATUS, UNIT_LABELS } from '../api/labels';
+import { STOCK_STATUS, UNIT_LABELS, formatUnitQty } from '../api/labels';
 import type { PeriodReport } from '../api/types';
 import { useOpenShift } from '../components/PaymentFields';
 import type { PageKey } from '../layout/AdminShell';
@@ -43,7 +43,13 @@ const PNL_ROWS: PnlRow[] = [
   { label: 'تكلفة مكونات الإنتاج', render: (r, f) => f(r.productionIngredientCostMilli) },
   { label: 'الديزل المستهلك (لتر)', render: (r) => formatQty(r.dieselLitersUsed) },
   { label: 'تكلفة الديزل المستهلك', render: (r, f) => f(r.dieselCostUsedMilli) },
-  { label: 'تكلفة الديزل لكل قطعة', render: (r, f) => f(r.dieselCostPerItemMilli) },
+  {
+    label: 'تكلفة الديزل لكل وحدة إنتاج',
+    render: (r, f) =>
+      r.dieselCostPerUnitMilli == null || r.unitsProduced.length === 0
+        ? '—'
+        : `${f(r.dieselCostPerUnitMilli)} / ${UNIT_LABELS[r.unitsProduced[0].unit]}`,
+  },
   { label: 'المخزون المشطوب (هدر)', render: (r, f) => f(r.stockWrittenOffMilli) },
   { label: 'أجور الإنتاج المستحقة', render: (r, f) => f(r.bakerPayEarnedMilli) },
 ];
@@ -211,11 +217,11 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: PageKey) => 
                           {p.name}
                         </Text>
                         <Text size="sm" c="dimmed">
-                          حد التنبيه {formatQty(p.lowStockQty)}
+                          حد التنبيه {formatUnitQty(p.lowStockQty, p.unit)}
                         </Text>
                       </Box>
                       <Text fw={700} c={p.stockQty < 0 ? 'red.8' : undefined}>
-                        {formatQty(p.stockQty)}
+                        {formatUnitQty(p.stockQty, p.unit)}
                       </Text>
                     </Group>
                   ))}

@@ -3,7 +3,7 @@ use rusqlite::{Connection, params};
 use crate::db::now_ms;
 use crate::error::{AppError, AppResult, invalid, not_found};
 use crate::models::{Range, StockAdjustment, StockAdjustmentInput};
-use crate::services::{catalog, opt_text, round};
+use crate::services::{catalog, fits_unit, opt_text, round};
 
 const REASONS: &[&str] = &["waste", "count", "returned", "outside_use", "other"];
 
@@ -22,7 +22,10 @@ pub fn create_stock_adjustment(conn: &mut Connection, input: StockAdjustmentInpu
             })
             .map_err(not_found)?,
         "product" => {
-            if input.qty_delta.fract() != 0.0 {
+            let unit: String = tx
+                .query_row("SELECT unit FROM products WHERE id = ?1", [input.item_id], |r| r.get(0))
+                .map_err(not_found)?;
+            if !fits_unit(&unit, input.qty_delta) {
                 return invalid("الكمية يجب أن تكون عدداً صحيحاً");
             }
             catalog::unit_costs(&tx, input.item_id)?.direct as f64
@@ -30,17 +33,11 @@ pub fn create_stock_adjustment(conn: &mut Connection, input: StockAdjustmentInpu
         _ => return invalid("نوع غير صالح"),
     };
     let value = round(input.qty_delta * unit_cost);
-    if input.item_type == "ingredient" {
-        tx.execute(
-            "UPDATE ingredients SET stock_qty = stock_qty + ?1 WHERE id = ?2",
-            params![input.qty_delta, input.item_id],
-        )?;
-    } else {
-        tx.execute(
-            "UPDATE products SET stock_qty = stock_qty + ?1 WHERE id = ?2",
-            params![input.qty_delta as i64, input.item_id],
-        )?;
-    }
+    let table = if input.item_type == "ingredient" { "ingredients" } else { "products" };
+    tx.execute(
+        &format!("UPDATE {table} SET stock_qty = stock_qty + ?1 WHERE id = ?2"),
+        params![input.qty_delta, input.item_id],
+    )?;
     tx.execute(
         "INSERT INTO stock_adjustments (item_type, item_id, qty_delta, value_milli, reason, adjusted_at, note, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -63,7 +60,7 @@ pub fn create_stock_adjustment(conn: &mut Connection, input: StockAdjustmentInpu
 pub fn list_stock_adjustments(conn: &Connection, range: Range) -> AppResult<Vec<StockAdjustment>> {
     let mut stmt = conn.prepare(
         "SELECT a.id, a.item_type, a.item_id,
-                COALESCE(i.name, p.name, ''), COALESCE(i.unit, 'pcs'),
+                COALESCE(i.name, p.name, ''), COALESCE(i.unit, p.unit, 'pcs'),
                 a.qty_delta, a.value_milli, a.reason, a.adjusted_at, a.note
          FROM stock_adjustments a
          LEFT JOIN ingredients i ON a.item_type = 'ingredient' AND i.id = a.item_id
@@ -95,11 +92,8 @@ pub fn delete_stock_adjustment(conn: &mut Connection, id: i64) -> AppResult<()> 
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })
         .map_err(not_found)?;
-    let n = if item_type == "ingredient" {
-        tx.execute("UPDATE ingredients SET stock_qty = stock_qty - ?1 WHERE id = ?2", params![delta, item_id])?
-    } else {
-        tx.execute("UPDATE products SET stock_qty = stock_qty - ?1 WHERE id = ?2", params![delta as i64, item_id])?
-    };
+    let table = if item_type == "ingredient" { "ingredients" } else { "products" };
+    let n = tx.execute(&format!("UPDATE {table} SET stock_qty = stock_qty - ?1 WHERE id = ?2"), params![delta, item_id])?;
     if n == 0 {
         return Err(AppError::NotFound);
     }

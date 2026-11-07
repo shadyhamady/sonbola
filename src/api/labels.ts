@@ -1,3 +1,4 @@
+import { formatQty } from '../lib/money';
 import type { AdjReason, PayMode, PayType, PurchaseStatus, StockStatus, Unit } from './types';
 
 export const UNIT_LABELS: Record<Unit, string> = {
@@ -10,6 +11,12 @@ export const UNIT_LABELS: Record<Unit, string> = {
   tray: 'صينية',
 };
 
+/** Count units hold whole quantities; weight and volume units take up to 3 decimals. */
+export const isCountUnit = (unit: Unit) => unit === 'pcs' || unit === 'pack' || unit === 'tray';
+
+/** "2.5 كغ" */
+export const formatUnitQty = (qty: number, unit: Unit) => `${formatQty(qty)} ${UNIT_LABELS[unit]}`;
+
 export const PAY_TYPE_LABELS: Record<PayType, string> = {
   monthly: 'شهري',
   weekly: 'أسبوعي',
@@ -18,20 +25,13 @@ export const PAY_TYPE_LABELS: Record<PayType, string> = {
   production: 'بالإنتاج',
 };
 
-export const PAY_MODE_LABELS: Record<PayMode, string> = {
-  none: 'بدون',
-  per_unit: 'بالقطعة',
-  per_kg: 'بالكيلو',
-  per_batch: 'بالدفعة',
-};
+/** Baker pay mode label; `per_unit` pays per unit of the product (`unit`). */
+export const payModeLabel = (mode: PayMode, unit: Unit) =>
+  ({ none: 'بدون', per_unit: `لكل ${UNIT_LABELS[unit]}`, per_kg: 'بالوزن (كغ)', per_batch: 'لكل دفعة' })[mode];
 
-/** Unit of a production worker's pay basis, by product pay mode. */
-export const PAY_BASIS_UNIT: Record<PayMode, string> = {
-  none: '',
-  per_unit: 'قطعة',
-  per_kg: 'كغ',
-  per_batch: 'دفعة',
-};
+/** Unit of a production worker's pay basis, by product pay mode and unit. */
+export const payBasisUnit = (mode: PayMode, unit: Unit) =>
+  ({ none: '', per_unit: UNIT_LABELS[unit], per_kg: 'كغ', per_batch: 'دفعة' })[mode];
 
 export const ADJ_REASON_LABELS: Record<AdjReason, string> = {
   waste: 'هدر / تلف',

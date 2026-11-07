@@ -3,9 +3,11 @@ import { ActionIcon, Badge, Box, Button, Card, Center, Flex, Group, ScrollArea, 
 import { IconBread, IconLayoutGrid, IconMinus, IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { listProductCategories } from '../api';
+import { UNIT_LABELS, formatUnitQty, isCountUnit } from '../api/labels';
 import type { Product } from '../api/types';
 import { useOpenShift } from '../components/PaymentFields';
 import { normalizeArabic } from '../lib/arabic';
+import { formatQty } from '../lib/money';
 import { pastelFor } from '../lib/pastel';
 import { useMoney } from '../lib/useSettings';
 
@@ -132,9 +134,12 @@ export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, sear
           <SimpleGrid cols={{ base: 2, md: 3, lg: 4 }} spacing="sm" pb="xs">
             {visible.map((p) => {
               const inCart = cart.get(p.id) ?? 0;
-              const remaining = p.stockQty - inCart;
+              const remaining = Math.round((p.stockQty - inCart) * 1000) / 1000;
               const pastel = pastelByCategory.get(p.categoryId) ?? pastelFor(0);
               const active = inCart > 0;
+              const price = isCountUnit(p.unit) ? fmt(p.priceMilli) : `${fmt(p.priceMilli)} / ${UNIT_LABELS[p.unit]}`;
+              // Pieces keep the bare number; other units name theirs.
+              const remainingLabel = p.unit === 'pcs' ? formatQty(remaining) : formatUnitQty(remaining, p.unit);
               return (
                 <Flex
                   key={p.id}
@@ -151,7 +156,7 @@ export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, sear
                 >
                   <UnstyledButton
                     onClick={() => onAdd(p.id)}
-                    aria-label={`${p.name}، ${fmt(p.priceMilli)}، متبقي ${remaining}${inCart ? `، في السلة ${inCart}` : ''}`}
+                    aria-label={`${p.name}، ${price}، متبقي ${formatUnitQty(remaining, p.unit)}${inCart ? `، في السلة ${formatUnitQty(inCart, p.unit)}` : ''}`}
                     style={{ flex: 1, textAlign: 'start' }}
                   >
                     <Group justify="space-between" align="flex-start" wrap="nowrap" gap={4}>
@@ -159,14 +164,14 @@ export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, sear
                         {p.name}
                       </Text>
                       {active && (
-                        <Badge color="dark" variant="filled" size="lg" fz={14} style={{ flexShrink: 0 }} aria-label={`في السلة ${inCart}`}>
-                          ×{inCart}
+                        <Badge color="dark" variant="filled" size="lg" fz={14} style={{ flexShrink: 0 }} aria-label={`في السلة ${formatUnitQty(inCart, p.unit)}`}>
+                          ×{formatQty(inCart)}
                         </Badge>
                       )}
                     </Group>
                     <Group justify="space-between" gap={4} mt={4}>
                       <Text fw={500} style={{ color: '#4a4a55' }}>
-                        {fmt(p.priceMilli)}
+                        {price}
                       </Text>
                       <Badge
                         color={remaining <= 0 ? 'red' : 'gray'}
@@ -175,7 +180,7 @@ export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, sear
                         size="md"
                         fz={12}
                       >
-                        متبقي {remaining}
+                        متبقي {remainingLabel}
                       </Badge>
                     </Group>
                   </UnstyledButton>
@@ -192,7 +197,7 @@ export function ProductGrid({ products, cart, onAdd, onSetQty, onOpenShift, sear
                       <IconMinus size={20} />
                     </ActionIcon>
                     <Text fw={700} fz={20} miw={28} ta="center">
-                      {inCart}
+                      {formatQty(inCart)}
                     </Text>
                     <ActionIcon
                       size={44}

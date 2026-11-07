@@ -3,15 +3,15 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::db::now_ms;
 use crate::error::{AppError, AppResult, invalid, not_found};
 use crate::models::*;
-use crate::services::{catalog, date_bounds, open_shift_id, opt_text, shift_is_closed};
+use crate::services::{catalog, date_bounds, fits_unit, open_shift_id, opt_text, round, shift_is_closed};
 
 pub fn create_sale(conn: &mut Connection, input: SaleInput) -> AppResult<Sale> {
     if input.items.is_empty() {
         return invalid("السلة فارغة");
     }
-    let mut merged: Vec<(i64, i64)> = Vec::new();
+    let mut merged: Vec<(i64, f64)> = Vec::new();
     for line in &input.items {
-        if line.qty <= 0 {
+        if !(line.qty > 0.0) || !line.qty.is_finite() {
             return invalid("قيمة غير صالحة");
         }
         match merged.iter_mut().find(|(id, _)| *id == line.product_id) {
@@ -26,26 +26,30 @@ pub fn create_sale(conn: &mut Connection, input: SaleInput) -> AppResult<Sale> {
     struct Line {
         product_id: i64,
         name: String,
-        qty: i64,
+        qty: f64,
         price: i64,
         cost: i64,
         overhead: i64,
+        total: i64,
     }
     let mut lines = Vec::with_capacity(merged.len());
     for (product_id, qty) in merged {
-        let row: Option<(String, i64, bool)> = tx
-            .query_row("SELECT name, price_milli, archived FROM products WHERE id = ?1", [product_id], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        let row: Option<(String, i64, bool, String)> = tx
+            .query_row("SELECT name, price_milli, archived, unit FROM products WHERE id = ?1", [product_id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
             })
             .optional()?;
-        let Some((name, price, false)) = row.filter(|(_, price, _)| *price > 0) else {
+        let Some((name, price, false, unit)) = row.filter(|(_, price, _, _)| *price > 0) else {
             return invalid("منتج غير متاح للبيع");
         };
+        if !fits_unit(&unit, qty) {
+            return invalid("الكمية يجب أن تكون عدداً صحيحاً");
+        }
         let (cost, overhead) = catalog::sale_costs(&tx, product_id)?;
-        lines.push(Line { product_id, name, qty, price, cost, overhead });
+        lines.push(Line { product_id, name, qty, price, cost, overhead, total: round(qty * price as f64) });
     }
-    let total: i64 = lines.iter().map(|l| l.qty * l.price).sum();
-    let cost: i64 = lines.iter().map(|l| l.qty * l.cost).sum();
+    let total: i64 = lines.iter().map(|l| l.total).sum();
+    let cost: i64 = lines.iter().map(|l| round(l.qty * l.cost as f64)).sum();
     let now = now_ms();
     tx.execute(
         "INSERT INTO sales (shift_id, total_milli, cost_milli, created_at) VALUES (?1, ?2, ?3, ?4)",
@@ -57,7 +61,7 @@ pub fn create_sale(conn: &mut Connection, input: SaleInput) -> AppResult<Sale> {
             "INSERT INTO sale_items (sale_id, product_id, product_name, qty, unit_price_milli, unit_cost_milli,
                unit_overhead_milli, line_total_milli, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![sale_id, l.product_id, l.name, l.qty, l.price, l.cost, l.overhead, l.qty * l.price, now],
+            params![sale_id, l.product_id, l.name, l.qty, l.price, l.cost, l.overhead, l.total, now],
         )?;
         tx.execute("UPDATE products SET stock_qty = stock_qty - ?1 WHERE id = ?2", params![l.qty, l.product_id])?;
     }
@@ -68,8 +72,9 @@ pub fn create_sale(conn: &mut Connection, input: SaleInput) -> AppResult<Sale> {
 
 fn load_items(conn: &Connection, sale_id: i64) -> AppResult<Vec<SaleItem>> {
     let mut stmt = conn.prepare(
-        "SELECT id, product_id, product_name, qty, unit_price_milli, unit_cost_milli, unit_overhead_milli, line_total_milli
-         FROM sale_items WHERE sale_id = ?1 ORDER BY id",
+        "SELECT si.id, si.product_id, si.product_name, si.qty, p.unit, si.unit_price_milli, si.unit_cost_milli,
+                si.unit_overhead_milli, si.line_total_milli
+         FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?1 ORDER BY si.id",
     )?;
     let rows = stmt.query_map([sale_id], |r| {
         Ok(SaleItem {
@@ -77,10 +82,11 @@ fn load_items(conn: &Connection, sale_id: i64) -> AppResult<Vec<SaleItem>> {
             product_id: r.get(1)?,
             product_name: r.get(2)?,
             qty: r.get(3)?,
-            unit_price_milli: r.get(4)?,
-            unit_cost_milli: r.get(5)?,
-            unit_overhead_milli: r.get(6)?,
-            line_total_milli: r.get(7)?,
+            unit: r.get(4)?,
+            unit_price_milli: r.get(5)?,
+            unit_cost_milli: r.get(6)?,
+            unit_overhead_milli: r.get(7)?,
+            line_total_milli: r.get(8)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -248,18 +254,20 @@ mod tests {
     fn pos_shift_drawer() {
         let mut c = conn();
         let f = fixture(&mut c);
-        produce(&mut c, f.product_id, 30, vec![f.ahmad, f.salem], "2025-03-02 08:00");
-        let cart = || SaleInput { items: vec![CartLine { product_id: f.product_id, qty: 3 }] };
+        produce(&mut c, f.product_id, 30.0, vec![f.ahmad, f.salem], "2025-03-02 08:00");
+        let cart = || SaleInput { items: vec![CartLine { product_id: f.product_id, qty: 3.0 }] };
 
         assert_eq!(err(create_sale(&mut c, cart())), "افتح وردية قبل البيع");
         shifts::open_shift(&c, OpenShiftInput { opening_cash_milli: 100000 }).unwrap();
         let sale = create_sale(&mut c, cart()).unwrap();
         assert_eq!((sale.total_milli, sale.cost_milli), (6000, 2025));
         assert_eq!(sale.items[0].unit_overhead_milli, 100);
-        assert_eq!(product(&c, "خبز عربي").stock_qty, 27);
+        assert_eq!(product(&c, "خبز عربي").stock_qty, 27.0);
+        let half = SaleInput { items: vec![CartLine { product_id: f.product_id, qty: 1.5 }] };
+        assert_eq!(err(create_sale(&mut c, half)), "الكمية يجب أن تكون عدداً صحيحاً");
 
         void_sale(&mut c, sale.id).unwrap();
-        assert_eq!(product(&c, "خبز عربي").stock_qty, 30);
+        assert_eq!(product(&c, "خبز عربي").stock_qty, 30.0);
         assert_eq!(err(void_sale(&mut c, sale.id)), "الفاتورة ملغاة مسبقاً");
         let sale = create_sale(&mut c, cart()).unwrap();
 
@@ -306,7 +314,7 @@ mod tests {
         shifts::open_shift(&c, OpenShiftInput { opening_cash_milli: 0 }).unwrap();
         let unpriced = id_of(&c, "products", "صمون");
         assert_eq!(
-            err(create_sale(&mut c, SaleInput { items: vec![CartLine { product_id: unpriced, qty: 1 }] })),
+            err(create_sale(&mut c, SaleInput { items: vec![CartLine { product_id: unpriced, qty: 1.0 }] })),
             "منتج غير متاح للبيع"
         );
         assert_eq!(err(create_sale(&mut c, SaleInput { items: vec![] })), "السلة فارغة");

@@ -19,7 +19,7 @@ import { useForm } from '@mantine/form';
 import { modals } from '@mantine/modals';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { getRecipe, listProducts, listStaff, previewProduction, recordProduction } from '../api';
-import { UNIT_LABELS } from '../api/labels';
+import { UNIT_LABELS, isCountUnit } from '../api/labels';
 import type { ProductionEntryUnit, ProductionInput } from '../api/types';
 import { toLocalDateString, withCurrentTime } from '../lib/dates';
 import { useMutate } from '../lib/useMutate';
@@ -43,12 +43,17 @@ export function ProductionPage() {
   const products = useQuery({ queryKey: ['listProducts', false], queryFn: () => listProducts(false) });
   const staff = useQuery({ queryKey: ['listStaff', false], queryFn: () => listStaff(false) });
   const bakers = (staff.data ?? []).filter((s) => s.payType === 'production');
+  // Only a count-unit product entered in its own unit must be a whole number.
+  const needsWhole = (values: FormValues) => {
+    const product = (products.data ?? []).find((p) => String(p.id) === values.productId);
+    return values.unit === 'units' && !!product && isCountUnit(product.unit);
+  };
 
   const form = useForm<FormValues>({
     initialValues: {
       date: toLocalDateString(new Date()),
       productId: null,
-      unit: 'pieces',
+      unit: 'units',
       basisId: '',
       units: '',
       staffIds: [],
@@ -58,14 +63,17 @@ export function ProductionPage() {
       date: (v) => (v ? null : 'اختر التاريخ'),
       productId: (v) => (v ? null : 'اختر المنتج'),
       units: (val, values) =>
-        Number(val) > 0 && (values.unit !== 'pieces' || Number.isInteger(Number(val)))
+        Number(val) > 0 && (!needsWhole(values) || Number.isInteger(Number(val)))
           ? null
-          : values.unit === 'pieces'
+          : needsWhole(values)
             ? 'أدخل عدداً صحيحاً أكبر من صفر'
             : 'أدخل كمية أكبر من صفر',
     },
   });
   const v = form.values;
+  const selectedProduct = (products.data ?? []).find((p) => String(p.id) === v.productId);
+  const productUnitLabel = selectedProduct ? UNIT_LABELS[selectedProduct.unit] : 'حبة';
+  const wholeOnly = needsWhole(v);
 
   const recipe = useQuery({
     queryKey: ['getRecipe', v.productId],
@@ -85,9 +93,9 @@ export function ProductionPage() {
 
   const qty = Number(v.units);
   const inputValid =
-    v.productId != null && v.units !== '' && qty > 0 && (v.unit !== 'pieces' || Number.isInteger(qty));
+    v.productId != null && v.units !== '' && qty > 0 && (!wholeOnly || Number.isInteger(qty));
   const input: ProductionInput =
-    v.unit === 'pieces'
+    v.unit === 'units'
       ? { productId: Number(v.productId), units: qty, staffIds: v.staffIds.map(Number) }
       : {
           productId: Number(v.productId),
@@ -153,9 +161,9 @@ export function ProductionPage() {
                   <SegmentedControl
                     fullWidth
                     data={[
-                      { value: 'pieces', label: 'قطعة' },
+                      { value: 'units', label: productUnitLabel },
                       { value: 'batches', label: 'دفعة' },
-                      { value: 'kg', label: 'كغ' },
+                      { value: 'kg', label: 'كغ عجين' },
                     ]}
                     {...form.getInputProps('unit')}
                   />
@@ -163,7 +171,7 @@ export function ProductionPage() {
                 {v.unit === 'kg' && (
                   <Select
                     label="الوزن المحسوب"
-                    description="يُحوَّل الوزن إلى قطع حسب وصفة المنتج"
+                    description={`يُحوَّل وزن العجين إلى ${productUnitLabel} حسب وصفة المنتج`}
                     allowDeselect={false}
                     data={basisOptions}
                     value={basisId}
@@ -171,12 +179,18 @@ export function ProductionPage() {
                   />
                 )}
                 <NumberInput
-                  label={v.unit === 'kg' ? 'الكمية المنتجة (كغ)' : v.unit === 'batches' ? 'عدد الدفعات' : 'الكمية المنتجة (قطعة)'}
+                  label={
+                    v.unit === 'kg'
+                      ? 'وزن العجين (كغ)'
+                      : v.unit === 'batches'
+                        ? 'عدد الدفعات'
+                        : `الكمية المنتجة (${productUnitLabel})`
+                  }
                   min={0}
-                  allowDecimal={v.unit !== 'pieces'}
+                  allowDecimal={!wholeOnly}
                   decimalScale={3}
                   allowNegative={false}
-                  hideControls={v.unit !== 'pieces'}
+                  hideControls={!wholeOnly}
                   {...form.getInputProps('units')}
                 />
                 <MultiSelect

@@ -19,7 +19,7 @@ import { modals } from '@mantine/modals';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { createStockAdjustment, deleteStockAdjustment, listIngredients, listProducts, listStockAdjustments } from '../../api';
-import { ADJ_REASON_LABELS, UNIT_LABELS, toOptions } from '../../api/labels';
+import { ADJ_REASON_LABELS, UNIT_LABELS, formatUnitQty, isCountUnit, toOptions } from '../../api/labels';
 import type { AdjReason, ItemType } from '../../api/types';
 import { RangePicker, useRange } from '../../components/RangePicker';
 import { formatDateTime, toLocalDateString, withCurrentTime } from '../../lib/dates';
@@ -28,7 +28,6 @@ import { useMutate } from '../../lib/useMutate';
 import { useMoney } from '../../lib/useSettings';
 
 const ITEM_TYPE_LABELS: Record<ItemType, string> = { ingredient: 'مكوّن', product: 'منتج' };
-const PRODUCT_UNIT = 'قطعة';
 
 export function AdjustmentsTab() {
   const { fmt } = useMoney();
@@ -94,7 +93,7 @@ export function AdjustmentsTab() {
                     {r.qtyDelta > 0 ? '+' : ''}
                     {formatQty(r.qtyDelta)}
                   </span>{' '}
-                  {r.itemType === 'product' ? PRODUCT_UNIT : UNIT_LABELS[r.unit]}
+                  {UNIT_LABELS[r.unit]}
                 </Table.Td>
                 <Table.Td c={r.valueMilli < 0 ? 'red.8' : undefined}>{fmt(r.valueMilli)}</Table.Td>
                 <Table.Td>{ADJ_REASON_LABELS[r.reason]}</Table.Td>
@@ -152,7 +151,8 @@ function AdjustmentForm({ onDone }: { onDone: () => void }) {
       qty: (v, values) => {
         const n = Number(v);
         if (v === '' || !(n > 0)) return 'أدخل كمية أكبر من صفر';
-        if (values.itemType === 'product' && !Number.isInteger(n)) return 'الكمية يجب أن تكون عدداً صحيحاً';
+        const product = values.itemType === 'product' ? products.find((p) => String(p.id) === values.itemId) : undefined;
+        if (product && isCountUnit(product.unit) && !Number.isInteger(n)) return 'الكمية يجب أن تكون عدداً صحيحاً';
         return null;
       },
     },
@@ -161,13 +161,16 @@ function AdjustmentForm({ onDone }: { onDone: () => void }) {
 
   const isProduct = form.values.itemType === 'product';
   const itemOptions = isProduct
-    ? products.map((p) => ({ value: String(p.id), label: `${p.name} (المخزون: ${formatQty(p.stockQty)})` }))
+    ? products.map((p) => ({ value: String(p.id), label: `${p.name} (المخزون: ${formatUnitQty(p.stockQty, p.unit)})` }))
     : ingredients.map((i) => ({
         value: String(i.id),
         label: `${i.name} (المخزون: ${formatQty(i.stockQty)} ${UNIT_LABELS[i.unit]})`,
       }));
-  const selectedIngredient = !isProduct ? ingredients.find((i) => String(i.id) === form.values.itemId) : undefined;
-  const unitLabel = isProduct ? PRODUCT_UNIT : selectedIngredient ? UNIT_LABELS[selectedIngredient.unit] : '';
+  const selectedUnit = isProduct
+    ? products.find((p) => String(p.id) === form.values.itemId)?.unit
+    : ingredients.find((i) => String(i.id) === form.values.itemId)?.unit;
+  const unitLabel = selectedUnit ? UNIT_LABELS[selectedUnit] : '';
+  const wholeOnly = isProduct && selectedUnit != null && isCountUnit(selectedUnit);
 
   const submit = form.onSubmit((v) => {
     const qty = Number(v.qty);
@@ -224,8 +227,8 @@ function AdjustmentForm({ onDone }: { onDone: () => void }) {
         <NumberInput
           label="الكمية"
           min={0}
-          decimalScale={isProduct ? 0 : 3}
-          allowDecimal={!isProduct}
+          decimalScale={wholeOnly ? 0 : 3}
+          allowDecimal={!wholeOnly}
           hideControls
           rightSection={<Text size="xs" c="dimmed">{unitLabel}</Text>}
           rightSectionWidth={50}
